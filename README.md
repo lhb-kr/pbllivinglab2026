@@ -3,15 +3,28 @@
 **조치원 생활환경 및 대학생 소진 경험 조사** (2026 PBL 리빙랩) 온라인 설문 프로토타입.
 MBTI 같은 성격유형 테스트 형식으로, 설문을 마치면 8가지 "조치원 구름" 유형과 "마음 날씨"(소진 지수)를 보여줍니다.
 
-| 설문 | 결과 | 관리자 |
+| 시작 | 척도 문항 (점 슬라이더) | 결과 |
 |---|---|---|
-| ![](docs/screenshots/05-likert.jpg) | ![](docs/screenshots/08-result.jpg) | ![](docs/screenshots/10-admin-summary.jpg) |
+| ![](docs/screenshots/01-landing.jpg) | ![](docs/screenshots/07-severity.jpg) | ![](docs/screenshots/10-result.jpg) |
+
+## 디자인
+
+- 명상 앱처럼 차분하고 미니멀한 화면
+  - 숨 쉬듯 빛이 퍼지는 **오브(orb)** 하나가 중심 요소
+  - 오로라 배경의 색이 챕터마다 천천히 바뀜
+- 폰트
+  - 본문: **Pretendard** (npm으로 직접 호스팅, 필요한 글자 범위만 받아옴)
+  - 제목: **고운바탕**
+- 1~5점 문항(Q9–15, 24, 26, 28)과 빈도 문항(Q16–21)은 **가로 점 슬라이더**
+  - 탭하거나 드래그해서 고르고, 손을 떼면 잠시 후 다음 문항으로 넘어감
+  - 소진 빈도 문항은 오른쪽으로 갈수록 점이 커지고, 오브의 색이 새벽빛에서 해질녘 보랏빛으로 가라앉음
+  - 키보드 ←/→, 숫자키도 지원
+- 화면 문구는 최소한으로 줄이고, 문항과 보기는 PDF 원문 그대로 사용
 
 ## 구성
 
 - **`/`** 설문. 랜딩 → 개인정보(선택)·동의 → 31개 문항을 한 화면에 하나씩 (조건부 8-1, 28-1, 31-1 포함) → 결과
-  - 문항 문구는 원안(09.22) 그대로 두고, 화면 위쪽에 가벼운 도입 문구(kicker)만 덧붙임
-  - 단일선택·리커트는 누르면 바로 다음 문항으로 넘어감, 숫자키/Enter 지원
+  - 단일선택·슬라이더는 고르면 바로 다음 문항으로 넘어감, 숫자키/Enter 지원
   - 진행 상황은 브라우저에 자동 저장되어 **이어하기** 가능
   - 전송에 실패하면 브라우저에 보관했다가 다음 방문 때 다시 전송
   - 결과 공유 링크 `/?from=OSL` 로 들어오면 "친구는 ○○ 구름이었어요" 배너 표시
@@ -68,7 +81,8 @@ app/                  페이지 & API 라우트 (Next.js App Router)
 components/Survey.tsx 설문 흐름 전체
 components/ResultView.tsx 결과 화면
 components/AdminDashboard.tsx 관리자 대시보드
-components/Art.tsx, Sky.tsx 구름 캐릭터·하늘 애니메이션 (SVG/CSS)
+components/Art.tsx     오브, 점 슬라이더, 날씨 아이콘
+components/Sky.tsx     오로라 배경
 lib/questions.ts      문항 정의 (문항 수정은 여기서)
 lib/cloudTypes.ts     8가지 유형 설명·채점 로직
 lib/store.ts          저장소 (Supabase ↔ 로컬 파일)

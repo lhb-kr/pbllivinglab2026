@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Sky from "./Sky";
-import { CloudMascot, WeatherIcon, faceFor } from "./Art";
+import { Orb, WeatherIcon } from "./Art";
 import { CLOUD_TYPES, WEATHERS, weatherFor } from "@/lib/cloudTypes";
 import { LIKERT_LABELS, QUESTIONS, SECTIONS, etcKey, type Question } from "@/lib/questions";
 
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
         <div className="admin">
           <div className="admin-head">
             <div>
-              <h1 className="display">☁︎ 조치원 구름 설문 대시보드</h1>
+              <h1 className="display">조치원 구름 설문 대시보드</h1>
               <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {storage === "local" ? (
                   <span className="badge warn">로컬 저장 모드 (프로토타입) · Supabase 미연결</span>
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
 
           {rows.length === 0 ? (
             <div className="card empty">
-              <CloudMascot id="empty" size={110} face="sleepy" />
+              <div style={{ display: "flex", justifyContent: "center" }}><Orb size={110} /></div>
               <p className="muted">아직 응답이 없어요.</p>
               {storage === "local" && <button className="sbtn primary" onClick={seed}>데모 응답으로 미리보기</button>}
             </div>
@@ -126,9 +126,9 @@ function Login({ onDone }: { onDone: () => void }) {
     <main className="shell">
       <form className="center" onSubmit={submit}>
         <div className="card stack" style={{ textAlign: "center" }}>
-          <div><CloudMascot id="login" size={100} face="dot" /></div>
+          <div style={{ display: "flex", justifyContent: "center" }}><Orb size={120} /></div>
           <h1 className="display" style={{ fontSize: 24, margin: 0 }}>관리자 로그인</h1>
-          <input className="input" type="password" placeholder="비밀번호" value={pw} autoFocus onChange={(e) => setPw(e.target.value)} />
+          <input className="input boxed" type="password" placeholder="비밀번호" value={pw} autoFocus onChange={(e) => setPw(e.target.value)} />
           {err && <p className="small" style={{ color: "#c0587e", margin: 0 }}>{err}</p>}
           <button className="btn" type="submit">들어가기</button>
         </div>
@@ -188,7 +188,7 @@ function Summary({ rows }: { rows: Row[] }) {
     n: rows.filter((r) => r.type_code === code).length,
     label: (
       <>
-        <CloudMascot id={`sum-${code}`} size={30} colors={CLOUD_TYPES[code].colors} face={faceFor(code)} />
+        <Orb size={24} rings={false} colors={CLOUD_TYPES[code].colors} />
         <span><b>{code}</b> {CLOUD_TYPES[code].name}</span>
       </>
     ),
@@ -399,7 +399,7 @@ function People({ rows }: { rows: Row[] }) {
   return (
     <section className="card panel">
       <div className="filters">
-        <input className="input" placeholder="학번·전화번호·유형 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className="input boxed" placeholder="학번·전화번호·유형 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
         <label className="toggle"><input type="checkbox" checked={onlyInterview} onChange={(e) => setOnlyInterview(e.target.checked)} /> 인터뷰 희망자만</label>
         <label className="toggle"><input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 연락처 전체 보기</label>
         <span className="small muted">{list.length}명</span>

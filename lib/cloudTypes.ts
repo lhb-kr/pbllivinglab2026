@@ -35,7 +35,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#인싸력만렙", "#단골집_부자", "#조치원_홍보대사"],
     tip: "복숭아 철엔 친구들과 조치원 복숭아 투어를 기획해보세요. 당신이 열면 다들 따라와요.",
     match: "HSL",
-    colors: ["#ffc9b8", "#ffe3d3"],
+    colors: ["#ffb59e", "#ffd7a8"],
   },
   OTE: {
     code: "OTE",
@@ -46,7 +46,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#약속_잡는_사람", "#막차_사수", "#어디든_같이"],
     tip: "조치원에서도 가볍게 모일 수 있는 아지트를 하나 만들어두면, 막차 걱정이 줄어들 거예요.",
     match: "HTL",
-    colors: ["#c7d8ff", "#e6ecff"],
+    colors: ["#9fb8ff", "#c9d6ff"],
   },
   OSL: {
     code: "OSL",
@@ -57,7 +57,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#혼자서도_잘해요", "#산책_마스터", "#노을_수집가"],
     tip: "봄의 조천 벚꽃길은 당신을 위한 길이에요. 좋아하는 플레이리스트를 챙겨 나가보세요.",
     match: "HTE",
-    colors: ["#cdeede", "#eaf8f0"],
+    colors: ["#a8e0c4", "#d4f0e2"],
   },
   OSE: {
     code: "OSE",
@@ -68,7 +68,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#즉흥여행", "#기차_창가석", "#자유영혼"],
     tip: "가끔은 멀리 가지 않아도 괜찮아요. 조치원 1927 아트센터처럼 가까운 곳에서도 새로운 풍경을 만날 수 있어요.",
     match: "HTL",
-    colors: ["#e0d4ff", "#f1ebff"],
+    colors: ["#c3a9ff", "#e4d6ff"],
   },
   HTL: {
     code: "HTL",
@@ -79,7 +79,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#정_많은_구름", "#학교가_좋아", "#야식_파티"],
     tip: "가끔은 친구들과 원도심이나 전통시장까지 원정을 떠나보세요. 익숙한 사람과 낯선 풍경, 최고의 조합이에요.",
     match: "OSE",
-    colors: ["#ffe7a8", "#fff5d6"],
+    colors: ["#ffd88a", "#ffecc0"],
   },
   HTE: {
     code: "HTE",
@@ -90,7 +90,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#배달앱_VIP", "#새벽수다", "#아쉬움_토론회"],
     tip: "투덜대던 아이디어를 모아보세요. 당신들이 원하는 공간이 바로 조치원에 필요한 공간이에요.",
     match: "OSL",
-    colors: ["#ffd6ea", "#ffeaf4"],
+    colors: ["#ffadd0", "#ffd6e8"],
   },
   HSL: {
     code: "HSL",
@@ -101,7 +101,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#집이_최고", "#루틴_장인", "#조용한_행복"],
     tip: "하루 10분, 집 앞 골목 산책을 루틴에 넣어보세요. 포근한 구름에게도 햇볕은 필요해요.",
     match: "OTL",
-    colors: ["#d4ecff", "#ecf6ff"],
+    colors: ["#a9d4ff", "#d8ecff"],
   },
   HSE: {
     code: "HSE",
@@ -112,7 +112,7 @@ export const CLOUD_TYPES: Record<string, CloudType> = {
     tags: ["#본가_러버", "#이불_요새", "#충전_중"],
     tip: "무리하지 않아도 돼요. 마음이 내킬 때 가까운 카페 한 곳부터 ‘나만의 장소’로 만들어보세요.",
     match: "OTE",
-    colors: ["#dcdcf0", "#f0f0fa"],
+    colors: ["#b9b6dd", "#e2e0f3"],
   },
 };
 

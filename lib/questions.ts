@@ -1,5 +1,4 @@
 // 설문 문항 정의 — 문항 문구는 연구 타당성을 위해 원안(PBL 설문지 09.22)을 그대로 유지합니다.
-// kicker 는 화면에만 보이는 가벼운 도입 문구입니다.
 
 export type QuestionType = "single" | "multi" | "likert" | "freq" | "text" | "longtext";
 
@@ -17,7 +16,6 @@ export interface Question {
   id: string;
   number: string;
   section: number;
-  kicker: string;
   text: string;
   hint?: string;
   type: QuestionType;
@@ -25,6 +23,8 @@ export interface Question {
   max?: number;
   optional?: boolean;
   placeholder?: string;
+  /** 단일선택 문항을 5단계 점 슬라이더로 표시 */
+  scale?: boolean;
   showIf?: (a: Answers) => boolean;
 }
 
@@ -67,19 +67,16 @@ export const QUESTIONS: Question[] = [
   // 1. 기본 정보
   {
     id: "q1", number: "1", section: 1, type: "single",
-    kicker: "먼저 가볍게 몸풀기부터",
     text: "현재 학년은 무엇인가요?",
     options: [o("1학년"), o("2학년"), o("3학년"), o("4학년"), o("5학년 이상 / 초과학기"), o("기타")],
   },
   {
     id: "q2", number: "2", section: 1, type: "single",
-    kicker: "어느 구름 떼에 속해 있나요?",
     text: "소속 단과대학 또는 전공 계열은 무엇인가요?",
     options: [o("인문·사회계열"), o("자연·과학계열"), o("공학계열"), o("예체능계열"), etc()],
   },
   {
     id: "q3", number: "3", section: 1, type: "single",
-    kicker: "통계용 질문이에요",
     text: "성별은 무엇인가요?",
     options: [o("여성"), o("남성"), o("기타")],
   },
@@ -87,7 +84,6 @@ export const QUESTIONS: Question[] = [
   // 2. 거주 및 생활패턴
   {
     id: "q4", number: "4", section: 2, type: "single",
-    kicker: "당신의 구름이 머무는 곳",
     text: "현재 거주 형태는 무엇인가요?",
     options: [
       o("자취(원룸, 빌라, 오피스텔 등)"), o("기숙사"), o("본가에서 통학"),
@@ -96,7 +92,6 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q5", number: "5", section: 2, type: "single",
-    kicker: "주말의 조치원 하늘에 당신이 있나요?",
     text: "학기 중 주말(토, 일)에 조치원에 머무르는 빈도는 어느 정도인가요?",
     options: [
       o("거의 매주 머문다"), o("한 달에 2~3회 정도 머문다"), o("한 달에 1회 정도 머문다"),
@@ -105,7 +100,6 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q6", number: "6", section: 2, type: "multi", max: 2,
-    kicker: "수업 끝! 오늘 저녁 구름은 어디로?",
     text: "수업이나 과제가 끝난 평일 저녁, 주로 시간을 보내는 장소는 어디인가요?",
     hint: "최대 2개까지 골라주세요",
     options: [
@@ -115,13 +109,11 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q7", number: "7", section: 2, type: "single",
-    kicker: "바람 타고 둥실둥실, 얼마나 자주?",
     text: "수업이나 필수 일정 외에 외출하는 빈도는 어느 정도인가요?",
     options: [o("거의 매일"), o("주 3~4회"), o("주 1~2회"), o("거의 외출하지 않는다")],
   },
   {
     id: "q8", number: "8", section: 2, type: "single",
-    kicker: "나만 아는 조치원 아지트, 있나요?",
     text: "평소 조치원에서 학교를 제외하고 자주 이용하는 문화 및 여가 공간이 있나요?",
     options: [
       o("자주 이용하는 공간이 있다"), o("가끔 이용하는 공간이 있다"),
@@ -130,7 +122,6 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q8_1", number: "8-1", section: 2, type: "multi",
-    kicker: "오, 어떤 곳인지 궁금해요",
     text: "이용하는 공간이 있다면 어떤 곳인가요?",
     hint: "복수 선택 가능",
     showIf: (a) => has(a, "q8", "자주 이용하는 공간이 있다", "가끔 이용하는 공간이 있다"),
@@ -142,31 +133,30 @@ export const QUESTIONS: Question[] = [
 
   // 3. 조치원 생활환경 인식
   ...[
-    ["q9", "9", "조치원 하늘 관찰 일지 ①", "조치원에는 대학생이 일상적으로 이용할 수 있는 문화 및 여가 공간이 충분하다고 느낀다."],
-    ["q10", "10", "조치원 하늘 관찰 일지 ②", "조치원에서는 수업이나 과제 외에 할 수 있는 활동이 다양하다고 느낀다."],
-    ["q11", "11", "조치원 하늘 관찰 일지 ③", "조치원에서 기분 전환을 위해 가볍게 방문할 수 있는 공간을 찾기 쉽다."],
-    ["q12", "12", "조치원 하늘 관찰 일지 ④", "조치원에서 생활할 때 이동하거나 활동하는 공간이 다양하다고 느낀다."],
-    ["q13", "13", "조치원 하늘 관찰 일지 ⑤", "주말에도 학교 주변이나 조치원 지역에서 사람들의 활동이 활발하다고 느낀다."],
-    ["q14", "14", "조치원 하늘 관찰 일지 ⑥", "조치원에서 생활하면서 새로운 활동이나 경험을 접할 기회가 충분하다고 느낀다."],
-    ["q15", "15", "마지막 관찰! 솔직하게", "전반적으로 조치원의 생활환경에 만족한다."],
-  ].map(([id, number, kicker, text]) => ({
-    id, number, kicker, text, section: 3, type: "likert" as const,
+    ["q9", "9", "조치원에는 대학생이 일상적으로 이용할 수 있는 문화 및 여가 공간이 충분하다고 느낀다."],
+    ["q10", "10", "조치원에서는 수업이나 과제 외에 할 수 있는 활동이 다양하다고 느낀다."],
+    ["q11", "11", "조치원에서 기분 전환을 위해 가볍게 방문할 수 있는 공간을 찾기 쉽다."],
+    ["q12", "12", "조치원에서 생활할 때 이동하거나 활동하는 공간이 다양하다고 느낀다."],
+    ["q13", "13", "주말에도 학교 주변이나 조치원 지역에서 사람들의 활동이 활발하다고 느낀다."],
+    ["q14", "14", "조치원에서 생활하면서 새로운 활동이나 경험을 접할 기회가 충분하다고 느낀다."],
+    ["q15", "15", "전반적으로 조치원의 생활환경에 만족한다."],
+  ].map(([id, number, text]) => ({
+    id, number, text, section: 3, type: "likert" as const,
   })),
 
   // 4. 일반적 피로 및 소진 경험 (CBI Personal Burnout)
   ...[
-    ["q16", "16", "요즘 당신의 마음 날씨는?", "평소 피곤하다고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q17", "17", "몸 컨디션 체크", "신체적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q18", "18", "마음 컨디션 체크", "정서적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q19", "19", "괜찮아요, 솔직하게 답해도 돼요", "“더 이상 감당하기 힘들다”고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q20", "20", "배터리 잔량 확인 중…", "완전히 녹초가 되었다고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q21", "21", "거의 다 왔어요", "몸이 약해졌거나 쉽게 아플 것 같다고 느끼는 경우가 얼마나 자주 있습니까?"],
-  ].map(([id, number, kicker, text]) => ({
-    id, number, kicker, text, section: 4, type: "freq" as const, options: FREQ_OPTIONS,
+    ["q16", "16", "평소 피곤하다고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q17", "17", "신체적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q18", "18", "정서적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q19", "19", "“더 이상 감당하기 힘들다”고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q20", "20", "완전히 녹초가 되었다고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q21", "21", "몸이 약해졌거나 쉽게 아플 것 같다고 느끼는 경우가 얼마나 자주 있습니까?"],
+  ].map(([id, number, text]) => ({
+    id, number, text, section: 4, type: "freq" as const, options: FREQ_OPTIONS,
   })),
   {
     id: "q22", number: "22", section: 4, type: "multi",
-    kicker: "먹구름의 정체를 찾아서",
     text: "평소 피로하거나 지쳐 있다고 느낄 때, 어떤 요인이 영향을 미친다고 생각하나요?",
     hint: "복수 선택 가능",
     options: [
@@ -177,7 +167,6 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q23", number: "23", section: 4, type: "multi",
-    kicker: "비 온 뒤 맑게 개는 나만의 방법",
     text: "피로하거나 무기력하다고 느낄 때 주로 어떻게 대처하나요?",
     hint: "복수 선택 가능",
     options: [
@@ -190,12 +179,10 @@ export const QUESTIONS: Question[] = [
   // 5. 조치원 이동 및 안전 환경 평가
   {
     id: "q24", number: "24", section: 5, type: "likert",
-    kicker: "구름도 바람을 타야 움직이죠",
     text: "조치원 내 대중교통 및 이동 여건에 전반적으로 만족한다.",
   },
   {
     id: "q25", number: "25", section: 5, type: "multi",
-    kicker: "이동할 때 제일 답답한 순간은?",
     text: "조치원에서 이동 시 가장 불편하다고 느끼는 점은 무엇인가요?",
     hint: "복수 선택 가능",
     options: [
@@ -210,12 +197,10 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q26", number: "26", section: 5, type: "likert",
-    kicker: "밤 산책길, 마음 놓고 걸을 수 있나요?",
     text: "조치원의 보행 및 야간 환경이 안전하게 관리되고 있다고 느낀다.",
   },
   {
     id: "q27", number: "27", section: 5, type: "multi",
-    kicker: "밤길에 멈칫하게 되는 순간",
     text: "조치원에서 이동하거나 생활할 때 가장 위협/불안을 느끼는 요인은 무엇인가요?",
     hint: "복수 선택 가능",
     options: [
@@ -234,8 +219,7 @@ export const QUESTIONS: Question[] = [
 
   // 6. 생활환경 개선 및 프로그램 수요 / 자유의견
   {
-    id: "q28", number: "28", section: 6, type: "single",
-    kicker: "구름 사이로 햇살 한 줄기 ☀︎",
+    id: "q28", number: "28", section: 6, type: "single", scale: true,
     text: "조치원에서 일상적인 기분 전환이나 외부 활동을 돕는 프로그램이 운영된다면 참여할 의향이 있나요?",
     options: [
       { value: "1", label: "전혀 참여할 의향이 없다" },
@@ -247,7 +231,6 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q28_1", number: "28-1", section: 6, type: "multi",
-    kicker: "어떤 프로그램이면 가볼래요?",
     text: "다음과 같은 프로그램이 있다면 참여하고 싶은 프로그램을 선택해주세요.",
     hint: "복수 선택 가능",
     showIf: (a) => Number(a.q28) >= 3,
@@ -259,13 +242,11 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: "q29", number: "29", section: 6, type: "longtext", optional: true,
-    kicker: "상상은 자유! 조치원에 무엇이든 띄워보세요",
     text: "조치원에서 생활하면서 ‘이런 공간이나 프로그램이 있으면 좋겠다’고 생각한 것이 있다면 자유롭게 적어주세요.",
     placeholder: "예) 밤늦게까지 여는 조용한 스터디 카페, 조천 따라 걷는 러닝 크루…",
   },
   {
     id: "q30", number: "30", section: 6, type: "text", optional: true,
-    kicker: "한 단어로 말해봐요",
     text: "조치원을 한 단어로 표현한다면?",
     placeholder: "예) 복숭아, 고요함, 정거장…",
   },
@@ -273,13 +254,11 @@ export const QUESTIONS: Question[] = [
   // 7. 후속 인터뷰 참여
   {
     id: "q31", number: "31", section: 7, type: "single",
-    kicker: "마지막 질문이에요!",
     text: "본 설문과 관련한 후속 인터뷰에 참여할 의향이 있나요?",
     options: [o("있다"), o("없다")],
   },
   {
     id: "q31_1", number: "31-1", section: 7, type: "text", optional: true,
-    kicker: "고마워요! 연락드릴게요",
     text: "인터뷰 참여를 희망하는 경우 연락 가능한 연락처를 남겨주세요.",
     placeholder: "010-0000-0000",
     showIf: (a) => a.q31 === "있다",

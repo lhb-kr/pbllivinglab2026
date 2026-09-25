@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sky from "./Sky";
-import { CloudMascot, LikertCloud, WeatherIcon, faceFor } from "./Art";
+import { Orb, ScaleDots } from "./Art";
 import ResultView from "./ResultView";
 import {
   LIKERT_LABELS,
@@ -21,7 +21,16 @@ interface Info { studentId: string; phone: string; consent: boolean }
 const SAVE_KEY = "chowon-survey-v1";
 const DONE_KEY = "chowon-survey-done";
 const PENDING_KEY = "chowon-survey-pending";
-const WX = ["sunny", "partly", "cloudy", "overcast", "rain"] as const;
+
+// 소진 빈도가 높아질수록 오브의 빛이 새벽빛 → 해질녘 보랏빛으로 가라앉음
+const SEVERITY_COLORS: [string, string][] = [
+  ["#ffe2a8", "#ffd0dc"],
+  ["#ffd6c8", "#e6d4ff"],
+  ["#dccfff", "#f5c3d6"],
+  ["#bdb3f2", "#d7b6e6"],
+  ["#a49ce0", "#b8a6de"],
+];
+const CALM: [string, string] = ["#c9b8ff", "#ffc6d9"];
 
 const store = {
   get<T>(k: string): T | null {
@@ -45,6 +54,14 @@ async function postResponse(payload: unknown) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(String(res.status));
+}
+
+/** 슬라이더로 표시할 문항인지, 그리고 그 라벨·값 목록 */
+function scaleOf(q: Question): { labels: string[]; values: AnswerValue[]; tone: "calm" | "severity" } | null {
+  if (q.type === "likert") return { labels: LIKERT_LABELS, values: [1, 2, 3, 4, 5], tone: "calm" };
+  if (q.type === "freq") return { labels: q.options!.map((o) => o.label), values: q.options!.map((o) => o.value), tone: "severity" };
+  if (q.scale && q.options) return { labels: q.options.map((o) => o.label), values: q.options.map((o) => o.value), tone: "calm" };
+  return null;
 }
 
 export default function Survey() {
@@ -71,7 +88,7 @@ export default function Survey() {
     const from = new URLSearchParams(window.location.search).get("from");
     if (from && CLOUD_TYPES[from]) setFriend(from);
     setLastResult(store.get<{ code: string; answers: Answers }>(DONE_KEY));
-    const saved = store.get<{ answers: Answers; idx: number; info: Info; startedAt: number }>(SAVE_KEY);
+    const saved = store.get<{ answers: Answers }>(SAVE_KEY);
     if (saved && Object.keys(saved.answers ?? {}).length) setResumable(true);
     const pending = store.get(PENDING_KEY);
     if (pending) postResponse(pending).then(() => store.del(PENDING_KEY)).catch(() => {});
@@ -102,7 +119,7 @@ export default function Survey() {
     const hasPersonal = info.studentId.trim() || info.phone.trim();
     if (hasPersonal && !info.consent) {
       setConsentWarn(true);
-      flash("개인정보 수집에 동의하거나, 입력란을 비워주세요");
+      flash("입력한 정보를 남기려면 동의가 필요해요");
       setTimeout(() => setConsentWarn(false), 500);
       return;
     }
@@ -124,7 +141,7 @@ export default function Survey() {
         consentPersonal: info.consent,
         durationSec: startedAt ? Math.round((Date.now() - startedAt) / 1000) : null,
       };
-      const minWait = new Promise((r) => setTimeout(r, 2600));
+      const minWait = new Promise((r) => setTimeout(r, 3200));
       let ok = false;
       for (let i = 0; i < 3 && !ok; i++) {
         try { await postResponse(payload); ok = true; } catch { await new Promise((r) => setTimeout(r, 700 * (i + 1))); }
@@ -151,8 +168,7 @@ export default function Survey() {
       if (!nextQ) { submit(ans); return; }
       // 31-1: 앞에서 동의하고 입력한 번호가 있으면 미리 채워두기
       if (nextQ.id === "q31_1" && !ans.q31_1 && info.consent && info.phone) {
-        ans = { ...ans, q31_1: info.phone };
-        setAnswers(ans);
+        setAnswers({ ...ans, q31_1: info.phone });
       }
       setDir("fwd");
       setIdx(cur + 1);
@@ -169,20 +185,18 @@ export default function Survey() {
     else setIdx(idx - 1);
   };
 
-  // 인터루드(챕터 카드)는 잠깐 보여주고 자동으로 넘어감
+  // 챕터 카드는 잠시 머물렀다가 자동으로 넘어감
   useEffect(() => {
     if (stage !== "interlude") return;
-    const t = setTimeout(() => setStage("q"), 1500);
+    const t = setTimeout(() => setStage("q"), 2000);
     return () => clearTimeout(t);
   }, [stage]);
 
-  const setAnswer = (question: Question, value: AnswerValue | undefined, autoAdvance = false) => {
+  const setAnswer = (question: Question, value: AnswerValue | undefined, advanceAfter?: number) => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
     const next = { ...answers, [question.id]: value };
     setAnswers(next);
-    if (autoAdvance) {
-      if (advanceTimer.current) clearTimeout(advanceTimer.current);
-      advanceTimer.current = setTimeout(() => goNext(next), 380);
-    }
+    if (advanceAfter !== undefined) advanceTimer.current = setTimeout(() => goNext(next), advanceAfter);
   };
 
   const setEtc = (question: Question, text: string) =>
@@ -201,13 +215,13 @@ export default function Survey() {
       const cur = (answers[question.id] as string[] | undefined) ?? [];
       if (cur.includes(value)) return setAnswer(question, cur.filter((x) => x !== value));
       if (question.max && cur.length >= question.max) {
-        flash(`최대 ${question.max}개까지 고를 수 있어요`);
+        flash(`${question.max}개까지 고를 수 있어요`);
         return;
       }
       return setAnswer(question, [...cur, value]);
     }
     const isOther = question.options?.find((o) => o.value === value)?.other;
-    setAnswer(question, value, !isOther);
+    setAnswer(question, value, isOther ? undefined : 450);
   };
 
   // 키보드: 숫자키로 선택, Enter로 다음
@@ -219,10 +233,12 @@ export default function Survey() {
         if (e.key === "Enter" && tag === "INPUT" && canNext(q)) goNext(answers);
         return;
       }
+      if ((e.target as HTMLElement).getAttribute?.("role") === "slider") return;
       if (e.key === "Enter" && canNext(q)) return goNext(answers);
       const n = Number(e.key);
       if (!n) return;
-      if (q.type === "likert" && n <= 5) setAnswer(q, n, true);
+      const sc = scaleOf(q);
+      if (sc && n <= 5) setAnswer(q, sc.values[n - 1], 700);
       else if (q.options && n <= q.options.length) choose(q, q.options[n - 1].value);
     };
     window.addEventListener("keydown", onKey);
@@ -234,7 +250,25 @@ export default function Survey() {
       : stage === "result" || stage === "analyzing" ? "result"
       : `s${q?.section ?? 1}`;
 
-  const progress = visible.length ? (idx + (canNext(q) ? 1 : 0.4)) / visible.length : 0;
+  const progress = visible.length ? (idx + (canNext(q) ? 1 : 0)) / visible.length : 0;
+
+  // 문항 화면의 오브: 답에 따라 크기·빛·색이 반응
+  const orbState = (() => {
+    if (!q) return { level: 0.4, colors: CALM, pulse: undefined as string | undefined };
+    const sc = scaleOf(q);
+    const v = answers[q.id];
+    if (sc) {
+      const i = sc.values.findIndex((x) => String(x) === String(v));
+      if (i < 0) return { level: 0.35, colors: CALM, pulse: undefined };
+      return { level: i / 4, colors: sc.tone === "severity" ? SEVERITY_COLORS[i] : CALM, pulse: undefined };
+    }
+    if (q.type === "text" || q.type === "longtext") {
+      const len = String(v ?? "").length;
+      return { level: Math.min(1, 0.3 + len / 80), colors: CALM, pulse: undefined };
+    }
+    const n = Array.isArray(v) ? v.length : v ? 1 : 0;
+    return { level: 0.35 + Math.min(n, 4) * 0.15, colors: CALM, pulse: JSON.stringify(v ?? "") };
+  })();
 
   return (
     <>
@@ -257,13 +291,10 @@ export default function Survey() {
 
         {stage === "interlude" && q && (
           <div className="center interlude" onClick={() => setStage("q")}>
-            <div className="fade-up">
-              <div className="big">CHAPTER {q.section} · {SECTIONS[q.section].sky}</div>
+            <div className="fade-up" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <Orb size={150} level={0.5} />
+              <p className="num">CHAPTER {q.section} / 7</p>
               <h2 className="display">{SECTIONS[q.section].title}</h2>
-              <div className="bob" style={{ display: "inline-block", marginTop: 18 }}>
-                <CloudMascot id="inter" size={120} face={q.section >= 6 ? "happy" : q.section === 4 ? "sleepy" : "dot"} />
-              </div>
-              <p className="muted small" style={{ marginTop: 18 }}>탭하면 바로 시작해요</p>
             </div>
           </div>
         )}
@@ -272,45 +303,46 @@ export default function Survey() {
           <>
             <div className="topbar">
               <button className="iconbtn" onClick={goBack} aria-label="이전 문항">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
               </button>
               <div className="progress" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-                <div className="fill" style={{ width: `${progress * 100}%` }} />
-                <div className="rider" style={{ left: `${progress * 100}%` }}>
-                  <CloudMascot id="rider" size={34} face="happy" />
-                </div>
+                <i style={{ width: `${Math.max(progress * 100, 1)}%` }} />
               </div>
-              <div className="count">{idx + 1} / {visible.length}</div>
+              <div className="count">{idx + 1}/{visible.length}</div>
             </div>
 
             <div key={q.id} className={`qwrap ${dir === "fwd" ? "slide-in" : "slide-back"}`}>
+              <div className="qorb">
+                <Orb size={112} level={orbState.level} colors={orbState.colors} pulseKey={orbState.pulse} />
+              </div>
               <div className="qhead">
-                <span className="section-chip">☁︎ {SECTIONS[q.section].title}</span>
-                <p className="kicker">{q.kicker}</p>
-                <h1 className="qtext display">
-                  <span className="qnum">Q{q.number}.</span>
-                  {q.text}
-                </h1>
+                <p className="qmeta">Q{q.number} · {SECTIONS[q.section].title}</p>
+                <h1 className="qtext">{q.text}</h1>
                 {q.hint && <p className="hint">{q.hint}</p>}
               </div>
 
               <QuestionBody q={q} answers={answers} choose={choose} setAnswer={setAnswer} setEtc={setEtc} />
 
               <div className="foot">
-                {(q.type === "multi" || q.type === "text" || q.type === "longtext" || hasOtherSelected(q, answers)) && (
+                {needsButton(q, answers) && (
                   <button className="btn" disabled={!canNext(q)} onClick={() => goNext(answers)}>
-                    {visible[idx + 1] ? (q.optional && !answers[q.id] ? "건너뛰기" : "다음") : "결과 보기 ☁︎"}
+                    {visible[idx + 1] ? (q.optional && !answers[q.id] ? "건너뛰기" : "다음") : "결과 보기"}
                   </button>
                 )}
-                {(q.type === "single" || q.type === "likert" || q.type === "freq") && canNext(q) && !hasOtherSelected(q, answers) && (
-                  <button className="linkbtn" onClick={() => goNext(answers)}>다음 →</button>
+                {!needsButton(q, answers) && canNext(q) && (
+                  <button className="linkbtn" onClick={() => goNext(answers)}>다음</button>
                 )}
               </div>
             </div>
           </>
         )}
 
-        {stage === "analyzing" && <Analyzing />}
+        {stage === "analyzing" && (
+          <div className="center analyzing">
+            <Orb size={220} level={0.8} />
+            <p>천천히 숨을 고르며, 당신의 구름을 모으는 중</p>
+          </div>
+        )}
 
         {stage === "result" && resultCode && (
           <ResultView code={resultCode} answers={answers} saveFailed={saveFailed} />
@@ -322,10 +354,10 @@ export default function Survey() {
   );
 }
 
-function hasOtherSelected(q: Question, a: Answers) {
-  if (q.type !== "single") return false;
-  const opt = q.options?.find((o) => o.value === a[q.id]);
-  return !!opt?.other;
+function needsButton(q: Question, a: Answers) {
+  if (q.type === "multi" || q.type === "text" || q.type === "longtext") return true;
+  if (q.type === "single" && !q.scale) return !!q.options?.find((o) => o.value === a[q.id])?.other;
+  return false;
 }
 
 /* ───────────────────────── 문항 본문 ───────────────────────── */
@@ -336,34 +368,30 @@ function QuestionBody({
   q: Question;
   answers: Answers;
   choose: (q: Question, v: string) => void;
-  setAnswer: (q: Question, v: AnswerValue | undefined, auto?: boolean) => void;
+  setAnswer: (q: Question, v: AnswerValue | undefined, advanceAfter?: number) => void;
   setEtc: (q: Question, t: string) => void;
 }) {
   const v = answers[q.id];
+  const sc = scaleOf(q);
 
-  if (q.type === "likert") {
+  if (sc) {
+    const i = sc.values.findIndex((x) => String(x) === String(v));
     return (
-      <div>
-        <div className="likert" role="radiogroup" aria-label={q.text}>
-          {[1, 2, 3, 4, 5].map((n, i) => (
-            <button key={n} className={`lk ${v === n ? "on" : ""}`} style={{ animationDelay: `${i * 0.05}s` }}
-              role="radio" aria-checked={v === n} aria-label={`${n}점 ${LIKERT_LABELS[n - 1]}`}
-              onClick={() => setAnswer(q, n, true)}>
-              <LikertCloud level={n} active={v === n} />
-              <span className="n">{n}</span>
-            </button>
-          ))}
-        </div>
-        <div className="likert-labels"><span>전혀 그렇지 않다</span><span>매우 그렇다</span></div>
-        <div className="likert-now">{typeof v === "number" ? LIKERT_LABELS[v - 1] : ""}</div>
-      </div>
+      <ScaleDots
+        value={i < 0 ? undefined : i}
+        labels={sc.labels}
+        tone={sc.tone}
+        ariaLabel={q.text}
+        onChange={(n) => setAnswer(q, sc.values[n])}
+        onCommit={(n) => setAnswer(q, sc.values[n], 700)}
+      />
     );
   }
 
   if (q.type === "text" || q.type === "longtext") {
     const val = (v as string) ?? "";
     return q.type === "longtext" ? (
-      <textarea className="input" value={val} placeholder={q.placeholder} maxLength={2000}
+      <textarea className="input boxed" value={val} placeholder={q.placeholder} maxLength={2000}
         onChange={(e) => setAnswer(q, e.target.value)} />
     ) : (
       <input className="input" value={val} placeholder={q.placeholder} maxLength={q.id === "q30" ? 30 : 60}
@@ -374,39 +402,26 @@ function QuestionBody({
 
   const selected = (val: string) => (Array.isArray(v) ? v.includes(val) : v === val);
   const otherOn = q.options?.some((o) => o.other && selected(o.value));
+  const multi = q.type === "multi";
 
   return (
-    <div className="opts" role={q.type === "multi" ? "group" : "radiogroup"} aria-label={q.text}>
+    <div className="opts" role={multi ? "group" : "radiogroup"} aria-label={q.text}>
       {q.options!.map((o, i) => {
         const on = selected(o.value);
         return (
-          <button key={o.value} className={`opt ${on ? "on" : ""}`} style={{ animationDelay: `${i * 0.04}s` }}
-            role={q.type === "multi" ? "checkbox" : "radio"} aria-checked={on}
+          <button key={o.value} className={`opt ${on ? "on" : ""}`} style={{ animationDelay: `${0.05 + i * 0.04}s` }}
+            role={multi ? "checkbox" : "radio"} aria-checked={on}
             onClick={() => choose(q, o.value)}>
-            {q.type === "freq" ? (
-              <span className="wx"><WeatherIcon kind={WX[i]} size={30} /></span>
-            ) : q.type === "multi" ? (
-              <span className="box"><Check /></span>
-            ) : (
-              <span className="key">{i + 1}</span>
-            )}
+            <span className={`mark ${multi ? "sq" : ""}`} />
             <span>{o.label}</span>
           </button>
         );
       })}
       {otherOn && (
-        <input className="input etc-input" autoFocus placeholder="직접 입력해주세요 (선택)" maxLength={100}
+        <input className="input etc-input" autoFocus placeholder="직접 입력 (선택)" maxLength={100}
           value={(answers[etcKey(q.id)] as string) ?? ""} onChange={(e) => setEtc(q, e.target.value)} />
       )}
     </div>
-  );
-}
-
-export function Check() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    </svg>
   );
 }
 
@@ -422,68 +437,55 @@ function Landing({
   onResume: () => void;
   onShowLast: () => void;
 }) {
-  const preview = ["OTL", "OSL", "HTE", "HSL"];
+  const [notice, setNotice] = useState(false);
   return (
-    <div className="center fade-seq" style={{ textAlign: "center" }}>
-      <div className="pill-row"><span className="chip">☁︎ 2026 조치원 리빙랩 PBL</span></div>
-
-      <div className="hero-clouds">
-        {preview.map((c, i) => (
-          <div key={c} className="bob" style={{
-            left: `${[4, 56, 18, 62][i]}%`, top: `${[36, 4, -6, 70][i]}px`, animationDelay: `${-i * 1.1}s`,
-            zIndex: i === 0 || i === 1 ? 2 : 1,
-          }}>
-            <CloudMascot id={`hero-${c}`} size={[118, 104, 72, 70][i]} colors={CLOUD_TYPES[c].colors} face={faceFor(c)} />
-          </div>
-        ))}
-      </div>
-
+    <div className="center landing fade-seq">
+      <Orb size={230} level={0.6} />
       <div>
-        <h1 className="hero-title display">나는 어떤<br /><em>조치원 구름</em>일까?</h1>
-        <p className="muted" style={{ margin: 0, lineHeight: 1.6, wordBreak: "keep-all" }}>
-          조치원에서 보내는 나의 하루로 알아보는<br />8가지 구름 유형 테스트
-        </p>
-      </div>
-
-      <div className="pill-row" style={{ marginTop: 16 }}>
-        <span className="chip">⏱ 약 5분</span>
-        <span className="chip">☁︎ 8가지 유형</span>
-        <span className="chip">🌦 마음 날씨</span>
+        <p className="eyebrow" style={{ marginTop: 28 }}>JOCHIWON · 2026</p>
+        <h1 className="display">나는 어떤<br />조치원 구름일까</h1>
+        <p className="sub">5분, 나의 하루로 알아보는 구름 유형</p>
       </div>
 
       {friend && (
-        <div className="friend-banner" style={{ marginTop: 18 }}>
-          <CloudMascot id="friend" size={48} colors={CLOUD_TYPES[friend].colors} face={faceFor(friend)} />
-          <span style={{ textAlign: "left" }}>친구는 <b>{CLOUD_TYPES[friend].name}</b>이었어요.<br />나는 어떤 구름일까?</span>
+        <div className="friend">
+          <Orb size={34} rings={false} colors={CLOUD_TYPES[friend].colors} />
+          친구는 {CLOUD_TYPES[friend].name}
         </div>
       )}
 
-      <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="actions">
         {resumable ? (
           <>
-            <button className="btn" onClick={onResume}>이어서 하기 ☁︎</button>
-            <button className="btn ghost" onClick={onStart}>처음부터 다시</button>
+            <button className="btn" onClick={onResume}>이어서 하기</button>
+            <button className="linkbtn" onClick={onStart}>처음부터</button>
           </>
         ) : (
-          <button className="btn" onClick={onStart}>내 구름 찾으러 가기 ☁︎</button>
+          <button className="btn" onClick={onStart}>시작하기</button>
         )}
         {lastResult && CLOUD_TYPES[lastResult.code] && (
-          <button className="linkbtn" onClick={onShowLast}>지난번 내 결과 다시 보기</button>
+          <button className="linkbtn" onClick={onShowLast}>지난 결과 보기</button>
         )}
+        <button className="linkbtn small" onClick={() => setNotice(true)}>설문 안내 · 시작하면 안내에 동의한 것으로 봅니다</button>
       </div>
 
-      <details className="notice card" style={{ marginTop: 20, textAlign: "left", padding: "16px 18px" }}>
-        <summary>설문 안내문</summary>
-        <p>
-          본 설문은 조치원에서 생활하는 대학생의 생활패턴과 생활환경 경험, 피로 및 소진 수준을 파악하고
-          향후 대학생을 위한 생활환경 개선 및 프로그램 개발 방향을 탐색하기 위한 조사입니다.
-        </p>
-        <p>
-          응답 내용은 연구 및 프로젝트 수행 목적으로만 활용되며, 개인을 식별할 수 있는 형태로 공개되지 않습니다.
-          설문 응답 내용에 따라 일부 응답자에게 후속 심층인터뷰 참여를 요청드릴 수 있으며, 참여 여부는 자율적으로 결정할 수 있습니다.
-        </p>
-      </details>
-      <p className="faint small" style={{ marginTop: 10 }}>‘시작’을 누르면 위 안내에 동의한 것으로 봅니다.</p>
+      {notice && (
+        <div className="sheet-bg" onClick={() => setNotice(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h2>조치원 생활환경 및 대학생 소진 경험 조사</h2>
+            <p>
+              본 설문은 조치원에서 생활하는 대학생의 생활패턴과 생활환경 경험, 피로 및 소진 수준을 파악하고
+              향후 대학생을 위한 생활환경 개선 및 프로그램 개발 방향을 탐색하기 위한 조사입니다.
+            </p>
+            <p>
+              응답 내용은 연구 및 프로젝트 수행 목적으로만 활용되며, 개인을 식별할 수 있는 형태로 공개되지 않습니다.
+              설문 응답 내용에 따라 일부 응답자에게 후속 심층인터뷰 참여를 요청드릴 수 있으며, 참여 여부는 자율적으로 결정할 수 있습니다.
+            </p>
+            <p>예상 소요시간: 약 5분</p>
+            <button className="btn soft" onClick={() => setNotice(false)}>닫기</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -499,92 +501,69 @@ function InfoStep({
   onBack: () => void;
   onStart: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [terms, setTerms] = useState(false);
+  const toggle = () => setInfo({ ...info, consent: !info.consent });
   return (
-    <div className="center">
+    <>
       <div className="topbar">
         <button className="iconbtn" onClick={onBack} aria-label="처음으로">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
       </div>
-      <div className="fade-seq">
-        <div>
-          <p className="kicker" style={{ marginTop: 0 }}>출발 전에 잠깐!</p>
-          <h1 className="qtext display">연락받을 정보를 남겨주세요</h1>
-          <p className="hint" style={{ lineHeight: 1.6 }}>
-            후속 인터뷰 및 관련 안내를 위해서만 사용돼요.<br />
-            <b>입력하지 않아도 설문에 참여할 수 있어요.</b>
-          </p>
+      <div className="qwrap slide-in">
+        <div className="qhead" style={{ marginTop: 24 }}>
+          <p className="qmeta">선택 입력</p>
+          <h1 className="qtext">후속 인터뷰 연락을 위한<br />정보를 남겨주세요</h1>
+          <p className="hint">비워두어도 참여할 수 있어요</p>
         </div>
 
-        <div className="card stack" style={{ marginTop: 18 }}>
+        <div className="stack" style={{ marginTop: 8 }}>
           <div className="field">
-            <label htmlFor="sid">학번 <span>선택</span></label>
-            <input id="sid" className="input" inputMode="numeric" autoComplete="off" placeholder="예) 2024123456" maxLength={20}
+            <label htmlFor="sid">학번</label>
+            <input id="sid" className="input" inputMode="numeric" autoComplete="off" placeholder="2024123456" maxLength={20}
               value={info.studentId} onChange={(e) => setInfo({ ...info, studentId: e.target.value.replace(/\s/g, "") })} />
           </div>
-          <div className="field">
-            <label htmlFor="tel">전화번호 <span>선택</span></label>
+          <div className="field" style={{ marginTop: 26 }}>
+            <label htmlFor="tel">전화번호</label>
             <input id="tel" className="input" inputMode="tel" autoComplete="tel" placeholder="010-0000-0000"
               value={info.phone} onChange={(e) => setInfo({ ...info, phone: formatPhone(e.target.value) })} />
           </div>
 
-          <div className={`consent ${info.consent ? "on" : ""} ${warn ? "warn" : ""}`}
+          <div style={{ marginTop: 30 }}
+            className={`consent ${info.consent ? "on" : ""} ${warn ? "warn" : ""}`}
             role="checkbox" aria-checked={info.consent} tabIndex={0}
-            onClick={() => setInfo({ ...info, consent: !info.consent })}
-            onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); setInfo({ ...info, consent: !info.consent }); } }}>
-            <span className="box"><Check /></span>
-            <span style={{ fontSize: 14, lineHeight: 1.5 }}>
-              <b>[선택] 개인정보 수집·이용에 동의합니다</b>
-              <br /><span className="muted small">학번·전화번호를 입력한 경우에만 필요해요</span>
-            </span>
+            onClick={toggle}
+            onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } }}>
+            <span className="mark sq" />
+            <span>개인정보 수집·이용 동의 <span className="faint">(선택)</span></span>
+            <button className="more" onClick={(e) => { e.stopPropagation(); setTerms(true); }}>보기</button>
           </div>
+        </div>
 
-          <button className="linkbtn" style={{ padding: 0 }} onClick={() => setOpen(!open)}>
-            {open ? "동의 내용 접기" : "동의 내용 자세히 보기"}
-          </button>
-          {open && (
+        <div className="foot">
+          <button className="btn" onClick={onStart}>시작하기</button>
+        </div>
+      </div>
+
+      {terms && (
+        <div className="sheet-bg" onClick={() => setTerms(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h2>개인정보 수집·이용 동의 (선택)</h2>
             <table className="terms">
               <tbody>
                 <tr><th>수집 항목</th><td>학번, 전화번호</td></tr>
                 <tr><th>수집 목적</th><td>후속 심층인터뷰 참여 안내 및 일정 조율, 관련 연구·프로그램 안내</td></tr>
                 <tr><th>보유 기간</th><td>연구 종료 시까지 보관 후 지체 없이 파기</td></tr>
-                <tr><th>거부 권리</th><td>동의를 거부할 수 있으며, 거부하더라도 설문 참여에는 아무런 불이익이 없습니다. 동의하지 않으면 입력한 정보는 저장되지 않습니다.</td></tr>
+                <tr><th>거부 권리</th><td>동의를 거부할 수 있으며, 거부하더라도 설문 참여에는 불이익이 없습니다. 동의하지 않으면 입력한 정보는 저장되지 않습니다.</td></tr>
               </tbody>
             </table>
-          )}
-        </div>
-
-        <div style={{ marginTop: 18 }}>
-          <button className="btn" onClick={onStart}>설문 시작하기</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────── 분석 중 ───────────────────────── */
-
-function Analyzing() {
-  const puffs = [
-    ["-160px", "-90px"], ["120px", "-110px"], ["-140px", "70px"], ["150px", "60px"], ["0px", "-150px"], ["-20px", "120px"],
-  ];
-  return (
-    <div className="center analyzing">
-      <div className="gather">
-        {puffs.map(([x, y], i) => (
-          <div key={i} className="puff" style={{ ["--x" as string]: x, ["--y" as string]: y, animationDelay: `${i * 0.18}s` }}>
-            <CloudMascot id={`puff${i}`} size={60} face="dot" />
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button className="btn soft" onClick={() => setTerms(false)}>닫기</button>
+              <button className="btn" onClick={() => { setInfo({ ...info, consent: true }); setTerms(false); }}>동의하기</button>
+            </div>
           </div>
-        ))}
-        <div style={{ transform: "translate(-50%, -50%)" }} className="bob">
-          <CloudMascot id="gather-main" size={120} face="wow" />
         </div>
-      </div>
-      <h2 className="display" style={{ fontSize: 24, margin: "8px 0 6px" }}>
-        당신의 구름을 모으는 중<span className="dots"><span>.</span><span>.</span><span>.</span></span>
-      </h2>
-      <p className="muted small">조치원 하늘을 살펴보고 있어요</p>
-    </div>
+      )}
+    </>
   );
 }
