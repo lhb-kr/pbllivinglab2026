@@ -170,7 +170,7 @@ export function axisScores(a: Answers): [number, number, number] {
   if (q23.includes("스마트폰, 영상, SNS, 게임 등을 하며 시간을 보낸다")) together -= 0.5;
   if (q6.includes("교내 공간(도서관, 동아리방, 과방 등)")) together += 0.5;
   if (q6.includes("학교 주변 카페 및 식당")) together += 0.5;
-  if (q281.includes("다른 학생들과 함께하는 교류 프로그램")) together += 1;
+  if (q281.includes("지역 학생들간의 협력 및 교류 프로그램")) together += 1;
   if (q281.includes("휴식 및 마음건강 프로그램") && !q23.includes("친구나 지인을 만난다")) together -= 0.25;
   const togetherPct = clamp(((together + 1.75) / 5.75) * 100);
 

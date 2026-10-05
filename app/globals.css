@@ -185,6 +185,19 @@ textarea.input { min-height: 150px; resize: none; line-height: 1.65; }
 .opt.on { background: rgba(255,255,255,.7); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* 학교 선택 (2지선다) */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.seg button {
+  border: 1.5px solid var(--line); background: rgba(255,255,255,.45); border-radius: 16px; padding: 15px 10px;
+  font-size: 16px; color: var(--ink-2); transition: all .35s var(--ease);
+}
+.seg button.on { border-color: transparent; background: rgba(255,255,255,.9); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1.5px #c9bcff, 0 8px 24px -10px rgba(140,110,230,.55); }
+
+/* 숫자 입력 (나이) */
+.numfield { display: flex; align-items: baseline; gap: 10px; justify-content: center; }
+.numfield .input { width: 120px; text-align: center; font-size: 40px; font-weight: 300; padding-bottom: 8px; }
+.numfield .unit { font-size: 20px; color: var(--ink-2); }
+
 /* ───────── 5단계 점 슬라이더 ───────── */
 .scale { padding: 8px 4px 0; user-select: none; -webkit-user-select: none; }
 .scale-now { text-align: center; font-size: 17px; font-weight: 600; min-height: 26px; margin-bottom: 26px; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; transition: opacity .3s; }

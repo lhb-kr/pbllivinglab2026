@@ -7,9 +7,10 @@ export const SKY_THEMES: Record<string, [string, string, string]> = {
   s2: ["#dbe8ff", "#ffe8dc", "#e9e0ff"],
   s3: ["#d4ebff", "#e6e1ff", "#fff0e2"],
   s4: ["#e3dbff", "#ffe2d6", "#f2e4ff"],
-  s5: ["#ffddd2", "#ecdcff", "#dde4ff"],
-  s6: ["#dcd6ff", "#ffdce8", "#ffeede"],
-  s7: ["#cfd3f7", "#e3d8ff", "#ffe2ee"],
+  s5: ["#e8dcff", "#ffe0d8", "#e4ebff"],
+  s6: ["#ffddd2", "#ecdcff", "#dde4ff"],
+  s7: ["#dcd6ff", "#ffdce8", "#ffeede"],
+  s8: ["#cfd3f7", "#e3d8ff", "#ffe2ee"],
   result: ["#eadcff", "#ffdfe9", "#fff0e0"],
 };
 

@@ -1,6 +1,7 @@
-// 설문 문항 정의 — 문항 문구는 연구 타당성을 위해 원안(PBL 설문지 09.22)을 그대로 유지합니다.
+// 설문 문항 정의 — 문항 문구는 연구 타당성을 위해 최신 설문지 원안을 그대로 유지합니다.
+// (나이 문항만 설문지 외에 추가된 문항입니다.)
 
-export type QuestionType = "single" | "multi" | "likert" | "freq" | "text" | "longtext";
+export type QuestionType = "single" | "multi" | "likert" | "freq" | "text" | "longtext" | "number";
 
 export interface Option {
   value: string;
@@ -14,6 +15,7 @@ export type Answers = Record<string, AnswerValue | undefined>;
 
 export interface Question {
   id: string;
+  /** 설문지 문항 번호 (설문지 외 추가 문항은 빈 문자열) */
   number: string;
   section: number;
   text: string;
@@ -23,6 +25,8 @@ export interface Question {
   max?: number;
   optional?: boolean;
   placeholder?: string;
+  /** number 문항의 단위 (예: 세) */
+  unit?: string;
   /** 단일선택 문항을 5단계 점 슬라이더로 표시 */
   scale?: boolean;
   showIf?: (a: Answers) => boolean;
@@ -33,9 +37,10 @@ export const SECTIONS: Record<number, { title: string; sky: string }> = {
   2: { title: "거주 및 생활패턴", sky: "아침" },
   3: { title: "조치원 생활환경 인식", sky: "한낮" },
   4: { title: "피로 및 소진 경험", sky: "오후" },
-  5: { title: "이동 및 안전 환경", sky: "해질녘" },
-  6: { title: "프로그램 수요 · 자유의견", sky: "저녁" },
-  7: { title: "후속 인터뷰", sky: "밤" },
+  5: { title: "인식 및 대처", sky: "늦은 오후" },
+  6: { title: "이동 및 안전 환경", sky: "해질녘" },
+  7: { title: "프로그램 수요 · 자유의견", sky: "저녁" },
+  8: { title: "후속 인터뷰", sky: "밤" },
 };
 
 export const LIKERT_LABELS = [
@@ -66,19 +71,24 @@ const has = (a: Answers, id: string, ...vals: string[]) => {
 export const QUESTIONS: Question[] = [
   // 1. 기본 정보
   {
+    id: "age", number: "", section: 1, type: "number", unit: "세",
+    text: "나이는 어떻게 되나요?",
+    placeholder: "21",
+  },
+  {
     id: "q1", number: "1", section: 1, type: "single",
     text: "현재 학년은 무엇인가요?",
-    options: [o("1학년"), o("2학년"), o("3학년"), o("4학년"), o("5학년 이상 / 초과학기"), o("기타")],
+    options: [o("1학년"), o("2학년"), o("3학년"), o("4학년"), o("5학년 이상 / 초과학기"), etc()],
   },
   {
     id: "q2", number: "2", section: 1, type: "single",
     text: "소속 단과대학 또는 전공 계열은 무엇인가요?",
-    options: [o("인문·사회계열"), o("자연·과학계열"), o("공학계열"), o("예체능계열"), etc()],
+    options: [o("인문 및 사회계열"), o("자연 및 과학계열"), o("공학계열"), o("예체능계열"), etc()],
   },
   {
     id: "q3", number: "3", section: 1, type: "single",
     text: "성별은 무엇인가요?",
-    options: [o("여성"), o("남성"), o("기타")],
+    options: [o("여성"), o("남성"), etc()],
   },
 
   // 2. 거주 및 생활패턴
@@ -101,7 +111,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "q6", number: "6", section: 2, type: "multi", max: 2,
     text: "수업이나 과제가 끝난 평일 저녁, 주로 시간을 보내는 장소는 어디인가요?",
-    hint: "최대 2개까지 골라주세요",
+    hint: "복수 선택 가능, 최대 2개",
     options: [
       o("자취방 또는 기숙사"), o("교내 공간(도서관, 동아리방, 과방 등)"), o("학교 주변 카페 및 식당"),
       o("조치원 원도심"), o("세종시 시내 (나성동, 어진동, 도담동 등)"), etc(),
@@ -149,14 +159,16 @@ export const QUESTIONS: Question[] = [
     ["q16", "16", "평소 피곤하다고 느끼는 경우가 얼마나 자주 있습니까?"],
     ["q17", "17", "신체적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
     ["q18", "18", "정서적으로 지쳐 있다고 느끼는 경우가 얼마나 자주 있습니까?"],
-    ["q19", "19", "“더 이상 감당하기 힘들다”고 느끼는 경우가 얼마나 자주 있습니까?"],
+    ["q19", "19", "\"더 이상 감당하기 힘들다\"고 느끼는 경우가 얼마나 자주 있습니까?"],
     ["q20", "20", "완전히 녹초가 되었다고 느끼는 경우가 얼마나 자주 있습니까?"],
     ["q21", "21", "몸이 약해졌거나 쉽게 아플 것 같다고 느끼는 경우가 얼마나 자주 있습니까?"],
   ].map(([id, number, text]) => ({
     id, number, text, section: 4, type: "freq" as const, options: FREQ_OPTIONS,
   })),
+
+  // 5. 인식 및 대처
   {
-    id: "q22", number: "22", section: 4, type: "multi",
+    id: "q22", number: "22", section: 5, type: "multi",
     text: "평소 피로하거나 지쳐 있다고 느낄 때, 어떤 요인이 영향을 미친다고 생각하나요?",
     hint: "복수 선택 가능",
     options: [
@@ -166,7 +178,7 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "q23", number: "23", section: 4, type: "multi",
+    id: "q23", number: "23", section: 5, type: "multi",
     text: "피로하거나 무기력하다고 느낄 때 주로 어떻게 대처하나요?",
     hint: "복수 선택 가능",
     options: [
@@ -176,13 +188,13 @@ export const QUESTIONS: Question[] = [
     ],
   },
 
-  // 5. 조치원 이동 및 안전 환경 평가
+  // 6. 조치원 이동 및 안전 환경 평가
   {
-    id: "q24", number: "24", section: 5, type: "likert",
+    id: "q24", number: "24", section: 6, type: "likert",
     text: "조치원 내 대중교통 및 이동 여건에 전반적으로 만족한다.",
   },
   {
-    id: "q25", number: "25", section: 5, type: "multi",
+    id: "q25", number: "25", section: 6, type: "multi",
     text: "조치원에서 이동 시 가장 불편하다고 느끼는 점은 무엇인가요?",
     hint: "복수 선택 가능",
     options: [
@@ -190,36 +202,31 @@ export const QUESTIONS: Question[] = [
       o("택시 잡기가 어렵거나 이용이 불편함"),
       o("타 지역(신도심, 대전, 천안 등)으로 나가는 대중교통 연결이 불편함"),
       o("자전거 및 개인형 이동장치(킥보드 등) 도로/주차 환경 불량"),
-      o("심야/주말 대중교통(버스 막차 등) 조기 종료 및 운행 부족"),
       o("버스 정류장 시설 불량 및 실시간 도착 정보(BIS) 부정확"),
       etc(),
     ],
   },
   {
-    id: "q26", number: "26", section: 5, type: "likert",
+    id: "q26", number: "26", section: 6, type: "likert",
     text: "조치원의 보행 및 야간 환경이 안전하게 관리되고 있다고 느낀다.",
   },
   {
-    id: "q27", number: "27", section: 5, type: "multi",
+    id: "q27", number: "27", section: 6, type: "multi",
     text: "조치원에서 이동하거나 생활할 때 가장 위협/불안을 느끼는 요인은 무엇인가요?",
     hint: "복수 선택 가능",
     options: [
       o("가로등이 어둡거나 적어 야간 보행 시 위험함"),
-      o("인도 정비 불량 (보도블록 파손, 수풀/풀 무성함 등)"),
-      o("인도와 차도 구분이 없거나 차가 쌩쌩 달려 위험함"),
-      o("방범용 CCTV 및 비상벨 등 안전 시설 부족"),
-      o("인도 위 불법 주정차 차량으로 인한 통행 위험"),
-      o("킥보드/자전거의 인도 방치 및 보행자 사이 과속 주행"),
-      o("골목길, 교차로 등 사각지대로 인한 충돌 위험 및 과속 차량"),
+      o("인도 정비 불량 (인도와 차도 구분 불분명, 보도블록 파손, 수풀 무성함)"),
+      o("불법 주정차 차량으로 인한 통행 위험"),
       o("야간 취객, 노상 소란, 쓰레기 방치 등으로 인한 치안 불안"),
       o("공사 현장 안전 펜스 미비 또는 도로변 자재 방치"),
       etc(),
     ],
   },
 
-  // 6. 생활환경 개선 및 프로그램 수요 / 자유의견
+  // 7. 생활환경 개선 및 프로그램 수요 / 자유의견
   {
-    id: "q28", number: "28", section: 6, type: "single", scale: true,
+    id: "q28", number: "28", section: 7, type: "single", scale: true,
     text: "조치원에서 일상적인 기분 전환이나 외부 활동을 돕는 프로그램이 운영된다면 참여할 의향이 있나요?",
     options: [
       { value: "1", label: "전혀 참여할 의향이 없다" },
@@ -230,40 +237,37 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "q28_1", number: "28-1", section: 6, type: "multi",
+    id: "q28_1", number: "28-1", section: 7, type: "multi",
     text: "다음과 같은 프로그램이 있다면 참여하고 싶은 프로그램을 선택해주세요.",
     hint: "복수 선택 가능",
     showIf: (a) => Number(a.q28) >= 3,
     options: [
       o("산책 및 걷기 프로그램"), o("조치원 지역 탐방 프로그램"), o("소규모 취미 및 문화 활동"),
-      o("다른 학생들과 함께하는 교류 프로그램"), o("휴식 및 마음건강 프로그램"),
+      o("지역 학생들간의 협력 및 교류 프로그램"), o("휴식 및 마음건강 프로그램"),
       o("앱 또는 웹 기반 미션형 프로그램"), o("지역 상점 및 문화공간과 연계한 프로그램"), etc(),
     ],
   },
   {
-    id: "q29", number: "29", section: 6, type: "longtext", optional: true,
-    text: "조치원에서 생활하면서 ‘이런 공간이나 프로그램이 있으면 좋겠다’고 생각한 것이 있다면 자유롭게 적어주세요.",
+    id: "q29", number: "29", section: 7, type: "longtext", optional: true,
+    text: "조치원에서 생활하면서 '이런 공간이나 프로그램이 있으면 좋겠다'고 생각한 것이 있다면 자유롭게 적어주세요.",
     placeholder: "예) 밤늦게까지 여는 조용한 스터디 카페, 조천 따라 걷는 러닝 크루…",
   },
   {
-    id: "q30", number: "30", section: 6, type: "text", optional: true,
+    id: "q30", number: "30", section: 7, type: "text", optional: true,
     text: "조치원을 한 단어로 표현한다면?",
     placeholder: "예) 복숭아, 고요함, 정거장…",
   },
 
-  // 7. 후속 인터뷰 참여
+  // 8. 후속 인터뷰 참여
   {
-    id: "q31", number: "31", section: 7, type: "single",
+    id: "q31", number: "31", section: 8, type: "single",
     text: "본 설문과 관련한 후속 인터뷰에 참여할 의향이 있나요?",
     options: [o("있다"), o("없다")],
   },
-  {
-    id: "q31_1", number: "31-1", section: 7, type: "text", optional: true,
-    text: "인터뷰 참여를 희망하는 경우 연락 가능한 연락처를 남겨주세요.",
-    placeholder: "010-0000-0000",
-    showIf: (a) => a.q31 === "있다",
-  },
 ];
+
+/** 시작 화면에서 받는 소속 학교 */
+export const SCHOOLS = ["고려대학교", "홍익대학교"] as const;
 
 export const visibleQuestions = (a: Answers) => QUESTIONS.filter((q) => !q.showIf || q.showIf(a));
 

@@ -11,7 +11,10 @@ export function sanitizeAnswers(raw: unknown): Answers {
     const v = input[q.id];
     if (v == null || v === "") continue;
     const allowed = q.options?.map((o) => o.value);
-    if (q.type === "likert") {
+    if (q.type === "number") {
+      const n = Number(String(v).trim());
+      if (Number.isInteger(n) && n >= 10 && n <= 99) out[q.id] = n;
+    } else if (q.type === "likert") {
       const n = Number(v);
       if (Number.isInteger(n) && n >= 1 && n <= 5) out[q.id] = n;
     } else if (q.type === "multi") {

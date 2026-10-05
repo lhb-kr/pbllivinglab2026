@@ -3,9 +3,9 @@
 **조치원 생활환경 및 대학생 소진 경험 조사** (2026 PBL 리빙랩) 온라인 설문 프로토타입.
 MBTI 같은 성격유형 테스트 형식으로, 설문을 마치면 8가지 "조치원 구름" 유형과 "마음 날씨"(소진 지수)를 보여줍니다.
 
-| 시작 | 척도 문항 (점 슬라이더) | 결과 |
+| 시작 정보 · 동의 | 척도 문항 (점 슬라이더) | 결과 |
 |---|---|---|
-| ![](docs/screenshots/01-landing.jpg) | ![](docs/screenshots/07-severity.jpg) | ![](docs/screenshots/10-result.jpg) |
+| ![](docs/screenshots/02-info.jpg) | ![](docs/screenshots/07-severity.jpg) | ![](docs/screenshots/10-result.jpg) |
 
 ## 디자인
 
@@ -23,14 +23,14 @@ MBTI 같은 성격유형 테스트 형식으로, 설문을 마치면 8가지 "�
 
 ## 구성
 
-- **`/`** 설문. 랜딩 → 개인정보(선택)·동의 → 31개 문항을 한 화면에 하나씩 (조건부 8-1, 28-1, 31-1 포함) → 결과
+- **`/`** 설문. 랜딩 → 이름·전화번호·학교 + 개인정보 동의(필수) → 나이 + 설문지 31개 문항을 한 화면에 하나씩 (조건부 8-1, 28-1 포함) → 결과
   - 단일선택·슬라이더는 고르면 바로 다음 문항으로 넘어감, 숫자키/Enter 지원
   - 진행 상황은 브라우저에 자동 저장되어 **이어하기** 가능
   - 전송에 실패하면 브라우저에 보관했다가 다음 방문 때 다시 전송
   - 결과 공유 링크 `/?from=OSL` 로 들어오면 "친구는 ○○ 구름이었어요" 배너 표시
 - **`/admin`** 관리자 대시보드 (비밀번호 로그인)
   - 요약: 총 응답, 평균 소요시간, 평균 소진 지수, 유형·마음 날씨 분포, 일별 응답, 생활환경 인식 평균
-  - 문항별 결과, 주관식(Q29, Q30), 응답자 목록 (연락처 마스킹, 인터뷰 희망자 필터, 응답 상세)
+  - 문항별 결과, 주관식(Q29, Q30), 응답자 목록 (이름·연락처 마스킹, 인터뷰 희망자 필터, 응답 상세)
   - CSV 다운로드 (엑셀 호환 UTF-8 BOM)
 
 ## 유형 산출 로직 (`lib/cloudTypes.ts`)
@@ -48,10 +48,11 @@ MBTI 같은 성격유형 테스트 형식으로, 설문을 마치면 8가지 "�
 
 ## 개인정보
 
-- 학번·전화번호는 **선택** 입력, 형식 검증 없음
-- 입력한 경우 [선택] 개인정보 수집·이용 동의 체크가 필요
-- 동의하지 않으면 서버에 저장하지 않음 (`app/api/responses/route.ts`)
-- Q31에서 "있다"를 고르면 31-1 연락처 칸에 앞에서 입력한 번호가 미리 채워짐
+- 시작 화면에서 **이름, 전화번호, 학교(고려대학교 / 홍익대학교)** 를 받음
+  - 셋 다 필수, 전화번호 형식 검증은 하지 않음 (완료율 우선)
+- 개인정보 수집·이용 동의는 **필수**. 동의해야 문항으로 넘어감
+  - 서버도 동의가 없는 응답은 저장하지 않음 (`app/api/responses/route.ts`)
+- 나이는 설문지 외에 추가한 문항으로, '1. 기본 정보' 맨 앞에 숫자로 입력
 
 ## 로컬 실행
 
@@ -63,14 +64,16 @@ npm run dev          # http://localhost:3000 , 관리자: /admin (기본 비밀�
 - Supabase 환경변수가 없으면 응답은 `.data/responses.json` 에 저장 (프로토타입 모드)
 - 관리자 화면의 **데모 응답 40개 추가** 버튼으로 대시보드를 미리 볼 수 있음
 
-## 배포 (Vercel + Supabase 준비되면)
+## 배포 (Vercel + Supabase)
 
-1. Supabase 프로젝트 생성 → SQL Editor에서 `supabase/schema.sql` 실행
-   - RLS를 켜고 정책은 만들지 않음 → 서버만 접근 가능
-2. Vercel에 이 저장소 Import → 환경변수 설정 (`.env.example` 참고)
-   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `ADMIN_PASSWORD` (**반드시 변경**)
-3. 배포 후 `/admin` 배지가 "Supabase 연결됨"인지 확인
+1. Vercel에 이 저장소를 Import
+2. Vercel 프로젝트 → **Storage / Integrations** 에서 Supabase를 연결
+   - 연동이 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTGRES_URL` 등을 자동으로 넣어줌
+3. 환경변수에 `ADMIN_PASSWORD` 추가 (**반드시 변경**) 후 다시 배포
+4. `/admin` 로그인 → **테이블 만들기** 버튼
+   - `POSTGRES_URL` 로 `supabase/schema.sql` 을 실행해 `survey_responses` 테이블을 만듦
+   - 버튼이 안 보이거나 실패하면 `supabase/schema.sql` 을 Supabase SQL Editor에서 직접 실행
+5. 배지가 "Supabase 연결됨"으로 바뀌면 준비 완료
 
 > ⚠️ Vercel은 파일 시스템이 영구 저장되지 않으므로 Supabase 없이 배포하면 응답이 사라집니다.
 

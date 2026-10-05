@@ -8,8 +8,9 @@ import type { Answers } from "./questions";
 export interface ResponseRow {
   id: string;
   created_at: string;
-  student_id: string | null;
+  name: string | null;
   phone: string | null;
+  school: string | null;
   consent_personal: boolean;
   answers: Answers;
   type_code: string;
@@ -24,7 +25,8 @@ const TABLE = "survey_responses";
 let supa: SupabaseClient | null | undefined;
 function supabase() {
   if (supa !== undefined) return supa;
-  const url = process.env.SUPABASE_URL;
+  // Vercel의 Supabase 연동은 SUPABASE_URL 과 NEXT_PUBLIC_SUPABASE_URL 을 모두 넣어줍니다.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   supa = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
   return supa;
@@ -84,4 +86,45 @@ export async function listResponses(): Promise<ResponseRow[]> {
     return out;
   }
   return (await readLocal()).sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export type DbStatus =
+  | { mode: "local" }
+  | { mode: "supabase"; ready: true }
+  | { mode: "supabase"; ready: false; reason: "missing-table" | "error"; message?: string; canAutoSetup: boolean };
+
+const postgresUrl = () => process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || "";
+
+/** Supabase 테이블이 준비됐는지 확인 */
+export async function dbStatus(): Promise<DbStatus> {
+  const db = supabase();
+  if (!db) return { mode: "local" };
+  const { error } = await db.from(TABLE).select("id").limit(1);
+  if (!error) return { mode: "supabase", ready: true };
+  const missing = error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message);
+  return {
+    mode: "supabase",
+    ready: false,
+    reason: missing ? "missing-table" : "error",
+    message: error.message,
+    canAutoSetup: !!postgresUrl(),
+  };
+}
+
+/** Vercel–Supabase 연동이 넣어주는 POSTGRES_URL 로 테이블을 만듭니다. */
+export async function setupDatabase() {
+  const conn = postgresUrl();
+  if (!conn) throw new Error("POSTGRES_URL 환경변수가 없어요. supabase/schema.sql 을 SQL Editor에서 실행해주세요.");
+  const { Client } = await import("pg");
+  const { SCHEMA_SQL } = await import("./schema");
+  // Supabase 인증서 체인은 기본 CA 목록에 없어서 검증을 끄고 TLS로만 연결
+  const url = new URL(conn);
+  url.searchParams.delete("sslmode");
+  const client = new Client({ connectionString: url.toString(), ssl: { rejectUnauthorized: false } });
+  await client.connect();
+  try {
+    await client.query(SCHEMA_SQL);
+  } finally {
+    await client.end();
+  }
 }

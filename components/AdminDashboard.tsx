@@ -4,13 +4,14 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Sky from "./Sky";
 import { Orb, WeatherIcon } from "./Art";
 import { CLOUD_TYPES, WEATHERS, weatherFor } from "@/lib/cloudTypes";
-import { LIKERT_LABELS, QUESTIONS, SECTIONS, etcKey, type Question } from "@/lib/questions";
+import { LIKERT_LABELS, QUESTIONS, SCHOOLS, SECTIONS, etcKey, type Question } from "@/lib/questions";
 
 interface Row {
   id: string;
   created_at: string;
-  student_id: string | null;
+  name: string | null;
   phone: string | null;
+  school: string | null;
   consent_personal: boolean;
   answers: Record<string, string | string[] | number | undefined>;
   type_code: string;
@@ -19,6 +20,17 @@ interface Row {
 }
 
 type Tab = "summary" | "questions" | "text" | "people";
+
+interface DbStatus {
+  mode: "local" | "supabase";
+  ready?: boolean;
+  reason?: "missing-table" | "error";
+  message?: string;
+  canAutoSetup?: boolean;
+}
+
+const qLabel = (q: Question) => (q.number ? `Q${q.number}.` : "추가 문항 ·");
+const maskName = (s: string | null) => (s ? (s.length <= 1 ? s : s[0] + "*".repeat(Math.max(1, s.length - 2)) + (s.length > 2 ? s[s.length - 1] : "")) : "");
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
 const fmtTime = (iso: string) =>
@@ -30,6 +42,8 @@ export default function AdminDashboard() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [storage, setStorage] = useState<string>("");
+  const [status, setStatus] = useState<DbStatus | null>(null);
+  const [setupMsg, setSetupMsg] = useState("");
   const [tab, setTab] = useState<Tab>("summary");
   const [busy, setBusy] = useState(false);
 
@@ -41,8 +55,22 @@ export default function AdminDashboard() {
     const data = await res.json();
     setRows(data.rows);
     setStorage(data.storage);
+    setStatus(data.status ?? null);
     setAuthed(true);
   }, []);
+
+  const setup = async () => {
+    setBusy(true);
+    setSetupMsg("");
+    const res = await fetch("/api/admin/setup", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setSetupMsg(data.error ?? "테이블을 만들지 못했어요.");
+    setSetupMsg("테이블을 만들었어요.");
+    await load();
+  };
+
+  const needsSetup = status?.mode === "supabase" && status.ready === false;
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,6 +98,8 @@ export default function AdminDashboard() {
               <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {storage === "local" ? (
                   <span className="badge warn">로컬 저장 모드 (프로토타입) · Supabase 미연결</span>
+                ) : needsSetup ? (
+                  <span className="badge warn">Supabase 연결됨 · 테이블 준비 필요</span>
                 ) : (
                   <span className="badge">Supabase 연결됨</span>
                 )}
@@ -89,7 +119,25 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {rows.length === 0 ? (
+          {needsSetup ? (
+            <div className="card panel" style={{ maxWidth: 640 }}>
+              <h3>데이터베이스 테이블을 만들어주세요</h3>
+              <p className="small muted" style={{ lineHeight: 1.7 }}>
+                {status?.reason === "missing-table"
+                  ? "Supabase에 연결됐지만 응답을 저장할 survey_responses 테이블이 아직 없어요."
+                  : `Supabase에서 오류가 났어요: ${status?.message ?? ""}`}
+              </p>
+              {status?.canAutoSetup ? (
+                <button className="sbtn primary" onClick={setup} disabled={busy}>{busy ? "만드는 중…" : "테이블 만들기"}</button>
+              ) : (
+                <p className="small muted" style={{ lineHeight: 1.7 }}>
+                  자동으로 만들 수 있는 연결 정보(POSTGRES_URL)가 없어요. 저장소의 <code>supabase/schema.sql</code> 내용을
+                  Supabase 대시보드 → SQL Editor에 붙여넣고 실행한 뒤 새로고침해주세요.
+                </p>
+              )}
+              {setupMsg && <p className="small" style={{ marginTop: 10 }}>{setupMsg}</p>}
+            </div>
+          ) : rows.length === 0 ? (
             <div className="card empty">
               <div style={{ display: "flex", justifyContent: "center" }}><Orb size={110} /></div>
               <p className="muted">아직 응답이 없어요.</p>
@@ -227,6 +275,10 @@ function Summary({ rows }: { rows: Row[] }) {
         <Tile lab="평균 소진 지수 (CBI)" val={avgBurn.toFixed(1)} sub={`0~100 · ${weatherFor(avgBurn).label}`} />
         <Tile lab="인터뷰 희망" val={interview} sub={`${pct(interview, rows.length)}%`} />
         <Tile lab="개인정보 동의" val={consent} sub={`${pct(consent, rows.length)}%`} />
+        {SCHOOLS.map((sc) => {
+          const n = rows.filter((r) => r.school === sc).length;
+          return <Tile key={sc} lab={sc} val={n} sub={`${pct(n, rows.length)}%`} />;
+        })}
       </div>
       <div className="grid2">
         <section className="card panel">
@@ -249,7 +301,7 @@ function Summary({ rows }: { rows: Row[] }) {
           <div className="meta">1 전혀 그렇지 않다 ~ 5 매우 그렇다</div>
           {envMeans.map(({ q, mean, n }) => (
             <div className="hbar" key={q.id} title={`Q${q.number} 평균 ${mean.toFixed(2)} (n=${n})`}>
-              <span className="lab">Q{q.number}. {q.text.length > 34 ? q.text.slice(0, 34) + "…" : q.text}</span>
+              <span className="lab">{qLabel(q)} {q.text.length > 34 ? q.text.slice(0, 34) + "…" : q.text}</span>
               <span className="num">{mean.toFixed(2)}</span>
               <span className="track"><i style={{ width: `${((mean - 1) / 4) * 100}%` }} /></span>
             </div>
@@ -297,7 +349,21 @@ function QuestionPanel({ q, rows }: { q: Question; rows: Row[] }) {
   const etcTexts = rows.map((r) => r.answers[etcKey(q.id)]).filter(Boolean) as string[];
 
   let body: React.ReactNode;
-  if (q.type === "likert") {
+  if (q.type === "number") {
+    const vals = answered.map((r) => Number(r.answers[q.id])).filter((n) => Number.isFinite(n));
+    const lo = vals.length ? Math.min(...vals) : 0;
+    const hi = vals.length ? Math.max(...vals) : 0;
+    const counts = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i).map((age) => ({
+      label: String(age), n: vals.filter((v) => v === age).length, tip: `${age}${q.unit ?? ""}: ${vals.filter((v) => v === age).length}명`,
+    }));
+    const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    body = (
+      <>
+        <Cols items={counts} />
+        <div className="mean">평균 <b>{mean.toFixed(1)}</b>{q.unit}</div>
+      </>
+    );
+  } else if (q.type === "likert") {
     const counts = [1, 2, 3, 4, 5].map((v) => answered.filter((r) => Number(r.answers[q.id]) === v).length);
     const mean = n ? answered.reduce((s, r) => s + Number(r.answers[q.id]), 0) / n : 0;
     body = (
@@ -321,7 +387,7 @@ function QuestionPanel({ q, rows }: { q: Question; rows: Row[] }) {
 
   return (
     <section className="card panel">
-      <h3>Q{q.number}. {q.text}</h3>
+      <h3>{qLabel(q)} {q.text}</h3>
       <div className="meta">
         n = {n}{q.type === "multi" ? " · 복수응답 (응답자 대비 %)" : ""}{q.showIf ? " · 조건부 문항" : ""}
       </div>
@@ -390,7 +456,7 @@ function People({ rows }: { rows: Row[] }) {
       rows.filter((r) => {
         if (onlyInterview && r.answers.q31 !== "있다") return false;
         if (!query) return true;
-        const hay = [r.student_id, r.phone, r.type_code, CLOUD_TYPES[r.type_code]?.name, r.answers.q31_1].join(" ");
+        const hay = [r.name, r.phone, r.school, r.type_code, CLOUD_TYPES[r.type_code]?.name].join(" ");
         return hay.includes(query);
       }),
     [rows, onlyInterview, query],
@@ -399,36 +465,37 @@ function People({ rows }: { rows: Row[] }) {
   return (
     <section className="card panel">
       <div className="filters">
-        <input className="input boxed" placeholder="학번·전화번호·유형 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className="input boxed" placeholder="이름·전화번호·학교·유형 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
         <label className="toggle"><input type="checkbox" checked={onlyInterview} onChange={(e) => setOnlyInterview(e.target.checked)} /> 인터뷰 희망자만</label>
-        <label className="toggle"><input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 연락처 전체 보기</label>
+        <label className="toggle"><input type="checkbox" checked={reveal} onChange={(e) => setReveal(e.target.checked)} /> 개인정보 전체 보기</label>
         <span className="small muted">{list.length}명</span>
       </div>
       <div className="tablewrap">
         <table className="resp">
           <thead>
-            <tr><th>제출</th><th>학번</th><th>전화번호</th><th>유형</th><th>소진 지수</th><th>인터뷰</th><th>인터뷰 연락처</th><th>소요</th></tr>
+            <tr><th>제출</th><th>이름</th><th>전화번호</th><th>학교</th><th>나이</th><th>유형</th><th>소진 지수</th><th>인터뷰</th><th>소요</th></tr>
           </thead>
           <tbody>
             {list.map((r) => (
               <Fragment key={r.id}>
                 <tr className="row" onClick={() => setOpen(open === r.id ? null : r.id)}>
                   <td>{fmtTime(r.created_at)}</td>
-                  <td>{r.student_id ? (reveal ? r.student_id : r.student_id.slice(0, 4) + "****") : <span className="faint">—</span>}</td>
+                  <td>{r.name ? (reveal ? r.name : maskName(r.name)) : <span className="faint">—</span>}</td>
                   <td>{r.phone ? (reveal ? r.phone : mask(r.phone)) : <span className="faint">—</span>}</td>
+                  <td>{r.school ?? <span className="faint">—</span>}</td>
+                  <td>{show(r.answers.age)}</td>
                   <td>{r.type_code} {CLOUD_TYPES[r.type_code]?.name.replace(" 구름", "")}</td>
                   <td>{r.burnout_score ?? "—"}</td>
                   <td>{show(r.answers.q31)}</td>
-                  <td>{r.answers.q31_1 ? (reveal ? String(r.answers.q31_1) : mask(String(r.answers.q31_1))) : <span className="faint">—</span>}</td>
                   <td>{r.duration_sec ? `${Math.floor(r.duration_sec / 60)}:${String(r.duration_sec % 60).padStart(2, "0")}` : "—"}</td>
                 </tr>
                 {open === r.id && (
                   <tr>
-                    <td colSpan={8} className="detail">
+                    <td colSpan={9} className="detail">
                       <dl>
                         {QUESTIONS.map((q) => (
                           <Fragment key={q.id}>
-                            <dt>Q{q.number}. {q.text}</dt>
+                            <dt>{qLabel(q)} {q.text}</dt>
                             <dd>
                               {q.type === "likert" && r.answers[q.id] ? `${r.answers[q.id]} (${LIKERT_LABELS[Number(r.answers[q.id]) - 1]})` : q.type === "freq" ? show(q.options?.find((o) => o.value === r.answers[q.id])?.label) : show(r.answers[q.id])}
                               {r.answers[etcKey(q.id)] ? ` — 기타: ${r.answers[etcKey(q.id)]}` : ""}

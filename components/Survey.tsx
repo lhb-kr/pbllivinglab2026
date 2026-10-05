@@ -6,6 +6,7 @@ import { Orb, ScaleDots } from "./Art";
 import ResultView from "./ResultView";
 import {
   LIKERT_LABELS,
+  SCHOOLS,
   SECTIONS,
   etcKey,
   visibleQuestions,
@@ -16,9 +17,10 @@ import {
 import { CLOUD_TYPES, typeCode } from "@/lib/cloudTypes";
 
 type Stage = "landing" | "info" | "q" | "interlude" | "analyzing" | "result";
-interface Info { studentId: string; phone: string; consent: boolean }
+interface Info { name: string; phone: string; school: string; consent: boolean }
+const EMPTY_INFO: Info = { name: "", phone: "", school: "", consent: false };
 
-const SAVE_KEY = "chowon-survey-v1";
+const SAVE_KEY = "chowon-survey-v2";
 const DONE_KEY = "chowon-survey-done";
 const PENDING_KEY = "chowon-survey-pending";
 
@@ -69,7 +71,7 @@ export default function Survey() {
   const [answers, setAnswers] = useState<Answers>({});
   const [idx, setIdx] = useState(0);
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
-  const [info, setInfo] = useState<Info>({ studentId: "", phone: "", consent: false });
+  const [info, setInfo] = useState<Info>(EMPTY_INFO);
   const [consentWarn, setConsentWarn] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [resultCode, setResultCode] = useState<string | null>(null);
@@ -109,18 +111,24 @@ export default function Survey() {
     if (!saved) return;
     setAnswers(saved.answers);
     setIdx(saved.idx);
-    setInfo(saved.info);
+    setInfo({ ...EMPTY_INFO, ...saved.info });
     setStartedAt(saved.startedAt ?? Date.now());
     setDir("fwd");
     setStage("q");
   };
 
   const startSurvey = () => {
-    const hasPersonal = info.studentId.trim() || info.phone.trim();
-    if (hasPersonal && !info.consent) {
-      setConsentWarn(true);
-      flash("입력한 정보를 남기려면 동의가 필요해요");
-      setTimeout(() => setConsentWarn(false), 500);
+    const missing = !info.name.trim() ? "이름을 입력해주세요"
+      : !info.phone.trim() ? "전화번호를 입력해주세요"
+      : !info.school ? "학교를 선택해주세요"
+      : !info.consent ? "개인정보 수집·이용에 동의해주세요"
+      : null;
+    if (missing) {
+      if (!info.consent && info.name.trim() && info.phone.trim() && info.school) {
+        setConsentWarn(true);
+        setTimeout(() => setConsentWarn(false), 500);
+      }
+      flash(missing);
       return;
     }
     setAnswers({});
@@ -136,8 +144,9 @@ export default function Survey() {
       const code = typeCode(final);
       const payload = {
         answers: final,
-        studentId: info.consent ? info.studentId : "",
-        phone: info.consent ? info.phone : "",
+        name: info.name.trim(),
+        phone: info.phone.trim(),
+        school: info.school,
         consentPersonal: info.consent,
         durationSec: startedAt ? Math.round((Date.now() - startedAt) / 1000) : null,
       };
@@ -166,16 +175,12 @@ export default function Survey() {
       const cur = list.findIndex((x) => x.id === q?.id);
       const nextQ = list[cur + 1];
       if (!nextQ) { submit(ans); return; }
-      // 31-1: 앞에서 동의하고 입력한 번호가 있으면 미리 채워두기
-      if (nextQ.id === "q31_1" && !ans.q31_1 && info.consent && info.phone) {
-        setAnswers({ ...ans, q31_1: info.phone });
-      }
       setDir("fwd");
       setIdx(cur + 1);
       if (q && nextQ.section !== q.section) setStage("interlude");
       window.scrollTo({ top: 0 });
     },
-    [q, submit, info],
+    [q, submit],
   );
 
   const goBack = () => {
@@ -262,7 +267,7 @@ export default function Survey() {
       if (i < 0) return { level: 0.35, colors: CALM, pulse: undefined };
       return { level: i / 4, colors: sc.tone === "severity" ? SEVERITY_COLORS[i] : CALM, pulse: undefined };
     }
-    if (q.type === "text" || q.type === "longtext") {
+    if (q.type === "text" || q.type === "longtext" || q.type === "number") {
       const len = String(v ?? "").length;
       return { level: Math.min(1, 0.3 + len / 80), colors: CALM, pulse: undefined };
     }
@@ -293,7 +298,7 @@ export default function Survey() {
           <div className="center interlude" onClick={() => setStage("q")}>
             <div className="fade-up" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
               <Orb size={150} level={0.5} />
-              <p className="num">CHAPTER {q.section} / 7</p>
+              <p className="num">CHAPTER {q.section} / {Object.keys(SECTIONS).length}</p>
               <h2 className="display">{SECTIONS[q.section].title}</h2>
             </div>
           </div>
@@ -316,7 +321,7 @@ export default function Survey() {
                 <Orb size={112} level={orbState.level} colors={orbState.colors} pulseKey={orbState.pulse} />
               </div>
               <div className="qhead">
-                <p className="qmeta">Q{q.number} · {SECTIONS[q.section].title}</p>
+                <p className="qmeta">{q.number ? `Q${q.number} · ` : ""}{SECTIONS[q.section].title}</p>
                 <h1 className="qtext">{q.text}</h1>
                 {q.hint && <p className="hint">{q.hint}</p>}
               </div>
@@ -355,7 +360,7 @@ export default function Survey() {
 }
 
 function needsButton(q: Question, a: Answers) {
-  if (q.type === "multi" || q.type === "text" || q.type === "longtext") return true;
+  if (q.type === "multi" || q.type === "text" || q.type === "longtext" || q.type === "number") return true;
   if (q.type === "single" && !q.scale) return !!q.options?.find((o) => o.value === a[q.id])?.other;
   return false;
 }
@@ -388,6 +393,20 @@ function QuestionBody({
     );
   }
 
+  if (q.type === "number") {
+    return (
+      <div className="numfield">
+        <input className="input" inputMode="numeric" pattern="[0-9]*" autoFocus maxLength={2} placeholder={q.placeholder}
+          aria-label={q.text} value={v === undefined ? "" : String(v)}
+          onChange={(e) => {
+            const d = e.target.value.replace(/\D/g, "").slice(0, 2);
+            setAnswer(q, d ? Number(d) : undefined);
+          }} />
+        <span className="unit">{q.unit}</span>
+      </div>
+    );
+  }
+
   if (q.type === "text" || q.type === "longtext") {
     const val = (v as string) ?? "";
     return q.type === "longtext" ? (
@@ -395,8 +414,7 @@ function QuestionBody({
         onChange={(e) => setAnswer(q, e.target.value)} />
     ) : (
       <input className="input" value={val} placeholder={q.placeholder} maxLength={q.id === "q30" ? 30 : 60}
-        inputMode={q.id === "q31_1" ? "tel" : "text"}
-        onChange={(e) => setAnswer(q, q.id === "q31_1" ? formatPhone(e.target.value) : e.target.value)} />
+        onChange={(e) => setAnswer(q, e.target.value)} />
     );
   }
 
@@ -466,7 +484,7 @@ function Landing({
         {lastResult && CLOUD_TYPES[lastResult.code] && (
           <button className="linkbtn" onClick={onShowLast}>지난 결과 보기</button>
         )}
-        <button className="linkbtn small" onClick={() => setNotice(true)}>설문 안내 · 시작하면 안내에 동의한 것으로 봅니다</button>
+        <button className="linkbtn small" onClick={() => setNotice(true)}>설문 안내 보기</button>
       </div>
 
       {notice && (
@@ -474,12 +492,16 @@ function Landing({
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h2>조치원 생활환경 및 대학생 소진 경험 조사</h2>
             <p>
-              본 설문은 조치원에서 생활하는 대학생의 생활패턴과 생활환경 경험, 피로 및 소진 수준을 파악하고
-              향후 대학생을 위한 생활환경 개선 및 프로그램 개발 방향을 탐색하기 위한 조사입니다.
+              안녕하십니까. 본 설문은 조치원에서 생활하는 대학생의 생활패턴과 생활환경 경험, 피로 및 소진 수준을
+              파악하고 향후 생활환경 개선 및 프로그램 개발 방향을 모색하기 위해 진행됩니다.
             </p>
             <p>
-              응답 내용은 연구 및 프로젝트 수행 목적으로만 활용되며, 개인을 식별할 수 있는 형태로 공개되지 않습니다.
-              설문 응답 내용에 따라 일부 응답자에게 후속 심층인터뷰 참여를 요청드릴 수 있으며, 참여 여부는 자율적으로 결정할 수 있습니다.
+              연구 참여 확인 및 후속 심층인터뷰 안내를 위해 성명과 연락처를 수집하며, 개인정보는 해당 목적에만 사용한 뒤
+              연구 종료 후 폐기됩니다. 설문 결과는 개인을 식별할 수 없는 형태로 활용됩니다.
+            </p>
+            <p>
+              설문 응답에 따라 일부 참여자에게 후속 심층인터뷰를 요청드릴 수 있으며, 인터뷰 참여 여부는 자율적으로
+              결정할 수 있습니다. 설문 참여 역시 자율적이며 언제든 중단할 수 있습니다.
             </p>
             <p>예상 소요시간: 약 5분</p>
             <button className="btn soft" onClick={() => setNotice(false)}>닫기</button>
@@ -512,21 +534,31 @@ function InfoStep({
       </div>
       <div className="qwrap slide-in">
         <div className="qhead" style={{ marginTop: 24 }}>
-          <p className="qmeta">선택 입력</p>
-          <h1 className="qtext">후속 인터뷰 연락을 위한<br />정보를 남겨주세요</h1>
-          <p className="hint">비워두어도 참여할 수 있어요</p>
+          <p className="qmeta">시작하기 전에</p>
+          <h1 className="qtext">참여 확인을 위한<br />정보를 남겨주세요</h1>
         </div>
 
-        <div className="stack" style={{ marginTop: 8 }}>
+        <div className="stack">
           <div className="field">
-            <label htmlFor="sid">학번</label>
-            <input id="sid" className="input" inputMode="numeric" autoComplete="off" placeholder="2024123456" maxLength={20}
-              value={info.studentId} onChange={(e) => setInfo({ ...info, studentId: e.target.value.replace(/\s/g, "") })} />
+            <label htmlFor="name">이름</label>
+            <input id="name" className="input" autoComplete="name" placeholder="홍길동" maxLength={30}
+              value={info.name} onChange={(e) => setInfo({ ...info, name: e.target.value })} />
           </div>
           <div className="field" style={{ marginTop: 26 }}>
             <label htmlFor="tel">전화번호</label>
             <input id="tel" className="input" inputMode="tel" autoComplete="tel" placeholder="010-0000-0000"
               value={info.phone} onChange={(e) => setInfo({ ...info, phone: formatPhone(e.target.value) })} />
+          </div>
+          <div className="field" style={{ marginTop: 26 }}>
+            <label id="school-label">학교</label>
+            <div className="seg" role="radiogroup" aria-labelledby="school-label">
+              {SCHOOLS.map((sc) => (
+                <button key={sc} role="radio" aria-checked={info.school === sc}
+                  className={info.school === sc ? "on" : ""} onClick={() => setInfo({ ...info, school: sc })}>
+                  {sc}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ marginTop: 30 }}
@@ -535,7 +567,7 @@ function InfoStep({
             onClick={toggle}
             onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } }}>
             <span className="mark sq" />
-            <span>개인정보 수집·이용 동의 <span className="faint">(선택)</span></span>
+            <span>개인정보 수집·이용 동의 <span className="faint">(필수)</span></span>
             <button className="more" onClick={(e) => { e.stopPropagation(); setTerms(true); }}>보기</button>
           </div>
         </div>
@@ -548,13 +580,13 @@ function InfoStep({
       {terms && (
         <div className="sheet-bg" onClick={() => setTerms(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h2>개인정보 수집·이용 동의 (선택)</h2>
+            <h2>개인정보 수집·이용 동의 (필수)</h2>
             <table className="terms">
               <tbody>
-                <tr><th>수집 항목</th><td>학번, 전화번호</td></tr>
-                <tr><th>수집 목적</th><td>후속 심층인터뷰 참여 안내 및 일정 조율, 관련 연구·프로그램 안내</td></tr>
-                <tr><th>보유 기간</th><td>연구 종료 시까지 보관 후 지체 없이 파기</td></tr>
-                <tr><th>거부 권리</th><td>동의를 거부할 수 있으며, 거부하더라도 설문 참여에는 불이익이 없습니다. 동의하지 않으면 입력한 정보는 저장되지 않습니다.</td></tr>
+                <tr><th>수집 항목</th><td>성명, 연락처(전화번호), 소속 학교</td></tr>
+                <tr><th>수집 목적</th><td>연구 참여 확인 및 후속 심층인터뷰 안내</td></tr>
+                <tr><th>보유 기간</th><td>해당 목적에만 사용한 뒤 연구 종료 후 폐기</td></tr>
+                <tr><th>거부 권리</th><td>동의를 거부할 수 있으나, 이 경우 설문에 참여할 수 없습니다. 설문 결과는 개인을 식별할 수 없는 형태로 활용됩니다.</td></tr>
               </tbody>
             </table>
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
