@@ -240,7 +240,6 @@ export const QUESTIONS: Question[] = [
     id: "q28_1", number: "28-1", section: 7, type: "multi",
     text: "다음과 같은 프로그램이 있다면 참여하고 싶은 프로그램을 선택해주세요.",
     hint: "복수 선택 가능",
-    showIf: (a) => Number(a.q28) >= 3,
     options: [
       o("산책 및 걷기 프로그램"), o("조치원 지역 탐방 프로그램"), o("소규모 취미 및 문화 활동"),
       o("지역 학생들간의 협력 및 교류 프로그램"), o("휴식 및 마음건강 프로그램"),
