@@ -4,7 +4,8 @@ import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 
 // 본문: Pretendard (한글 가독성) · 제목: 고운바탕 (차분한 명조 포인트)
-const serif = Gowun_Batang({ weight: ["400", "700"], subsets: ["latin"], variable: "--font-serif", display: "swap" });
+// 한글 폰트는 글자 범위별로 파일이 수십 개로 나뉘어 있어 전부 미리 받지 않도록 preload를 끔
+const serif = Gowun_Batang({ weight: "400", subsets: ["latin"], variable: "--font-serif", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: "나는 어떤 조치원 구름일까?",
