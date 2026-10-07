@@ -254,7 +254,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "q30", number: "30", section: 7, type: "text", optional: true,
     text: "조치원을 한 단어로 표현한다면?",
-    placeholder: "예) 복숭아, 고요함, 정거장…",
+    placeholder: "한 단어로 적어주세요",
   },
 
   // 8. 후속 인터뷰 참여
