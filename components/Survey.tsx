@@ -455,6 +455,7 @@ function Landing({
   onResume: () => void;
   onShowLast: () => void;
 }) {
+  // 설문 안내문은 반드시 보도록: 시작 버튼을 누르면 안내문을 먼저 띄우고, 확인해야 시작
   const [notice, setNotice] = useState(false);
   return (
     <div className="center landing fade-seq">
@@ -476,15 +477,14 @@ function Landing({
         {resumable ? (
           <>
             <button className="btn" onClick={onResume}>이어서 하기</button>
-            <button className="linkbtn" onClick={onStart}>처음부터</button>
+            <button className="linkbtn" onClick={() => setNotice(true)}>처음부터</button>
           </>
         ) : (
-          <button className="btn" onClick={onStart}>시작하기</button>
+          <button className="btn" onClick={() => setNotice(true)}>시작하기</button>
         )}
         {lastResult && CLOUD_TYPES[lastResult.code] && (
           <button className="linkbtn" onClick={onShowLast}>지난 결과 보기</button>
         )}
-        <button className="linkbtn small" onClick={() => setNotice(true)}>설문 안내 보기</button>
       </div>
 
       {notice && (
@@ -504,7 +504,7 @@ function Landing({
               결정할 수 있습니다. 설문 참여 역시 자율적이며 언제든 중단할 수 있습니다.
             </p>
             <p>예상 소요시간: 약 5분</p>
-            <button className="btn soft" onClick={() => setNotice(false)}>닫기</button>
+            <button className="btn" onClick={() => { setNotice(false); onStart(); }}>확인하고 시작하기</button>
           </div>
         </div>
       )}
