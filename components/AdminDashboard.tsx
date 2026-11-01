@@ -1,8 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import Sky from "./Sky";
-import { Orb, WeatherIcon } from "./Art";
+import { WeatherIcon } from "./Art";
 import { CLOUD_TYPES, WEATHERS, weatherFor } from "@/lib/cloudTypes";
 import { LIKERT_LABELS, QUESTIONS, SCHOOLS, SECTIONS, etcKey, type Question } from "@/lib/questions";
 
@@ -87,14 +86,13 @@ export default function AdminDashboard() {
   };
 
   return (
-    <>
-      <Sky theme="s3" />
+    <div className="admin-root">
       {authed === false && <Login onDone={load} />}
       {authed && (
         <div className="admin">
           <div className="admin-head">
             <div>
-              <h1 className="display">조치원 구름 설문 대시보드</h1>
+              <h1>조치원 구름 설문 대시보드</h1>
               <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {storage === "local" ? (
                   <span className="badge warn">로컬 저장 모드 (프로토타입) · Supabase 미연결</span>
@@ -139,7 +137,6 @@ export default function AdminDashboard() {
             </div>
           ) : rows.length === 0 ? (
             <div className="card empty">
-              <div style={{ display: "flex", justifyContent: "center" }}><Orb size={110} /></div>
               <p className="muted">아직 응답이 없어요.</p>
               {storage === "local" && <button className="sbtn primary" onClick={seed}>데모 응답으로 미리보기</button>}
             </div>
@@ -153,7 +150,7 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -173,9 +170,8 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <main className="shell">
       <form className="center" onSubmit={submit}>
-        <div className="card stack" style={{ textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}><Orb size={120} /></div>
-          <h1 className="display" style={{ fontSize: 24, margin: 0 }}>관리자 로그인</h1>
+        <div className="card stack login">
+          <h1>관리자 로그인</h1>
           <input className="input boxed" type="password" placeholder="비밀번호" value={pw} autoFocus onChange={(e) => setPw(e.target.value)} />
           {err && <p className="small" style={{ color: "#c0587e", margin: 0 }}>{err}</p>}
           <button className="btn" type="submit">들어가기</button>
@@ -235,10 +231,7 @@ function Summary({ rows }: { rows: Row[] }) {
     key: code,
     n: rows.filter((r) => r.type_code === code).length,
     label: (
-      <>
-        <Orb size={24} rings={false} colors={CLOUD_TYPES[code].colors} />
-        <span><b>{code}</b> {CLOUD_TYPES[code].name}</span>
-      </>
+      <span><b>{code}</b> {CLOUD_TYPES[code].name}</span>
     ),
   })).sort((a, b) => b.n - a.n);
 

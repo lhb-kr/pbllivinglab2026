@@ -328,15 +328,11 @@ export default function Survey() {
 
               <QuestionBody q={q} answers={answers} choose={choose} setAnswer={setAnswer} setEtc={setEtc} />
 
-              <div className="foot">
-                {needsButton(q, answers) && (
-                  <button className="btn" disabled={!canNext(q)} onClick={() => goNext(answers)}>
-                    {visible[idx + 1] ? (q.optional && !answers[q.id] ? "건너뛰기" : "다음") : "결과 보기"}
-                  </button>
-                )}
-                {!needsButton(q, answers) && canNext(q) && (
-                  <button className="linkbtn" onClick={() => goNext(answers)}>다음</button>
-                )}
+              {/* 휴대폰에서도 항상 보이도록 화면 아래에 고정된 다음 버튼 */}
+              <div className="foot sticky">
+                <button className="btn" disabled={!canNext(q)} onClick={() => goNext(answers)}>
+                  {visible[idx + 1] ? (q.optional && !answers[q.id] ? "건너뛰기" : "다음") : "결과 보기"}
+                </button>
               </div>
             </div>
           </>
@@ -359,11 +355,6 @@ export default function Survey() {
   );
 }
 
-function needsButton(q: Question, a: Answers) {
-  if (q.type === "multi" || q.type === "text" || q.type === "longtext" || q.type === "number") return true;
-  if (q.type === "single" && !q.scale) return !!q.options?.find((o) => o.value === a[q.id])?.other;
-  return false;
-}
 
 /* ───────────────────────── 문항 본문 ───────────────────────── */
 
@@ -572,7 +563,7 @@ function InfoStep({
           </div>
         </div>
 
-        <div className="foot">
+        <div className="foot sticky">
           <button className="btn" onClick={onStart}>시작하기</button>
         </div>
       </div>
