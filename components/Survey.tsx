@@ -454,7 +454,7 @@ function Landing({
       <div>
         <p className="eyebrow" style={{ marginTop: 28 }}>JOCHIWON · 2026</p>
         <h1 className="display">나는 어떤<br />조치원 구름일까</h1>
-        <p className="sub">5분, 나의 하루로 알아보는 구름 유형</p>
+        <p className="sub">10분, 나의 하루로 알아보는 구름 유형</p>
       </div>
 
       {friend && (
@@ -494,7 +494,7 @@ function Landing({
               설문 응답에 따라 일부 참여자에게 후속 심층인터뷰를 요청드릴 수 있으며, 인터뷰 참여 여부는 자율적으로
               결정할 수 있습니다. 설문 참여 역시 자율적이며 언제든 중단할 수 있습니다.
             </p>
-            <p>예상 소요시간: 약 5분</p>
+            <p>예상 소요시간: 약 10분</p>
             <button className="btn" onClick={() => { setNotice(false); onStart(); }}>확인하고 시작하기</button>
           </div>
         </div>
