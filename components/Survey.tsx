@@ -20,18 +20,11 @@ type Stage = "landing" | "info" | "q" | "interlude" | "analyzing" | "result";
 interface Info { name: string; phone: string; school: string; consent: boolean }
 const EMPTY_INFO: Info = { name: "", phone: "", school: "", consent: false };
 
-const SAVE_KEY = "chowon-survey-v2";
-const DONE_KEY = "chowon-survey-done";
+// 설문지가 바뀌면 키를 올려서, 이전 문항 번호로 저장된 진행 상황·결과를 불러오지 않게 함
+const SAVE_KEY = "chowon-survey-v3";
+const DONE_KEY = "chowon-survey-done-v2";
 const PENDING_KEY = "chowon-survey-pending";
 
-// 소진 빈도가 높아질수록 오브의 빛이 새벽빛 → 해질녘 보랏빛으로 가라앉음
-const SEVERITY_COLORS: [string, string][] = [
-  ["#ffe2a8", "#ffd0dc"],
-  ["#ffd6c8", "#e6d4ff"],
-  ["#dccfff", "#f5c3d6"],
-  ["#bdb3f2", "#d7b6e6"],
-  ["#a49ce0", "#b8a6de"],
-];
 const CALM: [string, string] = ["#c9b8ff", "#ffc6d9"];
 
 const store = {
@@ -59,10 +52,9 @@ async function postResponse(payload: unknown) {
 }
 
 /** 슬라이더로 표시할 문항인지, 그리고 그 라벨·값 목록 */
-function scaleOf(q: Question): { labels: string[]; values: AnswerValue[]; tone: "calm" | "severity" } | null {
-  if (q.type === "likert") return { labels: LIKERT_LABELS, values: [1, 2, 3, 4, 5], tone: "calm" };
-  if (q.type === "freq") return { labels: q.options!.map((o) => o.label), values: q.options!.map((o) => o.value), tone: "severity" };
-  if (q.scale && q.options) return { labels: q.options.map((o) => o.label), values: q.options.map((o) => o.value), tone: "calm" };
+function scaleOf(q: Question): { labels: string[]; values: AnswerValue[] } | null {
+  if (q.type === "likert") return { labels: LIKERT_LABELS, values: [1, 2, 3, 4, 5] };
+  if (q.scale && q.options) return { labels: q.options.map((o) => o.label), values: q.options.map((o) => o.value) };
   return null;
 }
 
@@ -193,9 +185,10 @@ export default function Survey() {
   // 챕터 카드는 잠시 머물렀다가 자동으로 넘어감
   useEffect(() => {
     if (stage !== "interlude") return;
-    const t = setTimeout(() => setStage("q"), 2000);
+    // 안내 문구가 있는 챕터는 읽을 시간을 조금 더 줌
+    const t = setTimeout(() => setStage("q"), q && SECTIONS[q.section].intro ? 4500 : 2000);
     return () => clearTimeout(t);
-  }, [stage]);
+  }, [stage, q]);
 
   const setAnswer = (question: Question, value: AnswerValue | undefined, advanceAfter?: number) => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
@@ -243,7 +236,7 @@ export default function Survey() {
       const n = Number(e.key);
       if (!n) return;
       const sc = scaleOf(q);
-      if (sc && n <= 5) setAnswer(q, sc.values[n - 1], 700);
+      if (sc && n <= sc.values.length) setAnswer(q, sc.values[n - 1], 700);
       else if (q.options && n <= q.options.length) choose(q, q.options[n - 1].value);
     };
     window.addEventListener("keydown", onKey);
@@ -265,7 +258,7 @@ export default function Survey() {
     if (sc) {
       const i = sc.values.findIndex((x) => String(x) === String(v));
       if (i < 0) return { level: 0.35, colors: CALM, pulse: undefined };
-      return { level: i / 4, colors: sc.tone === "severity" ? SEVERITY_COLORS[i] : CALM, pulse: undefined };
+      return { level: i / (sc.values.length - 1), colors: CALM, pulse: undefined };
     }
     if (q.type === "text" || q.type === "longtext" || q.type === "number") {
       const len = String(v ?? "").length;
@@ -300,6 +293,8 @@ export default function Survey() {
               <Orb size={150} level={0.5} />
               <p className="num">CHAPTER {q.section} / {Object.keys(SECTIONS).length}</p>
               <h2 className="display">{SECTIONS[q.section].title}</h2>
+              {SECTIONS[q.section].intro && <p className="intro">{SECTIONS[q.section].intro}</p>}
+              <p className="tap">화면을 누르면 바로 시작해요</p>
             </div>
           </div>
         )}
@@ -376,7 +371,6 @@ function QuestionBody({
       <ScaleDots
         value={i < 0 ? undefined : i}
         labels={sc.labels}
-        tone={sc.tone}
         ariaLabel={q.text}
         onChange={(n) => setAnswer(q, sc.values[n])}
         onCommit={(n) => setAnswer(q, sc.values[n], 700)}
@@ -482,17 +476,27 @@ function Landing({
         <div className="sheet-bg" onClick={() => setNotice(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h2>조치원 생활환경 및 대학생 소진 경험 조사</h2>
+            <p>안녕하십니까. 고려대학교 세종캠퍼스 사회문제해결리빙랩 PBL 9팀입니다.</p>
             <p>
-              안녕하십니까. 본 설문은 조치원에서 생활하는 대학생의 생활패턴과 생활환경 경험, 피로 및 소진 수준을
-              파악하고 향후 생활환경 개선 및 프로그램 개발 방향을 모색하기 위해 진행됩니다.
+              본 설문은 조치원에서 생활하는 대학생의 생활환경과 생활패턴, 피로 및 소진 경험을 파악하고 향후 지역
+              생활환경 개선 및 프로그램 개발 방향을 모색하기 위해 진행됩니다.
             </p>
             <p>
-              연구 참여 확인 및 후속 심층인터뷰 안내를 위해 성명과 연락처를 수집하며, 개인정보는 해당 목적에만 사용한 뒤
-              연구 종료 후 폐기됩니다. 설문 결과는 개인을 식별할 수 없는 형태로 활용됩니다.
+              설문 참여는 자율적으로 이루어지며, 원하지 않을 경우 언제든 응답을 중단할 수 있습니다. 설문 응답은 연구
+              목적으로만 활용되며, 분석 과정에서는 개인을 식별할 수 없는 형태로 처리됩니다.
             </p>
             <p>
-              설문 응답에 따라 일부 참여자에게 후속 심층인터뷰를 요청드릴 수 있으며, 인터뷰 참여 여부는 자율적으로
-              결정할 수 있습니다. 설문 참여 역시 자율적이며 언제든 중단할 수 있습니다.
+              설문 참여 확인 및 후속 심층인터뷰 안내를 위해 성명과 연락처를 수집할 수 있으며, 해당 개인정보는 설문
+              응답과 분리하여 관리합니다. 수집된 개인정보는 인터뷰 참여 여부 확인 및 연락 목적으로만 사용하며, 연구
+              종료 후 폐기합니다.
+            </p>
+            <p>
+              또한 일부 주관식 응답은 전체적인 응답 경향을 파악하기 위해 AI 기반 텍스트 분석에 활용될 수 있습니다.
+              분석 결과는 연구 목적의 내용 분석에만 사용되며, 개인을 식별하거나 평가하는 용도로는 활용되지 않습니다.
+            </p>
+            <p>
+              설문 응답 결과에 따라 일부 참여자에게 후속 심층인터뷰를 요청드릴 수 있으며, 인터뷰 참여 여부는 자유롭게
+              결정할 수 있습니다.
             </p>
             <p>예상 소요시간: 약 10분</p>
             <button className="btn" onClick={() => { setNotice(false); onStart(); }}>확인하고 시작하기</button>
@@ -575,8 +579,9 @@ function InfoStep({
             <table className="terms">
               <tbody>
                 <tr><th>수집 항목</th><td>성명, 연락처(전화번호), 소속 학교</td></tr>
-                <tr><th>수집 목적</th><td>연구 참여 확인 및 후속 심층인터뷰 안내</td></tr>
-                <tr><th>보유 기간</th><td>해당 목적에만 사용한 뒤 연구 종료 후 폐기</td></tr>
+                <tr><th>수집 목적</th><td>설문 참여 확인, 인터뷰 참여 여부 확인 및 연락</td></tr>
+                <tr><th>관리 방법</th><td>설문 응답과 분리하여 관리</td></tr>
+                <tr><th>보유 기간</th><td>연구 종료 후 폐기</td></tr>
                 <tr><th>거부 권리</th><td>동의를 거부할 수 있으나, 이 경우 설문에 참여할 수 없습니다. 설문 결과는 개인을 식별할 수 없는 형태로 활용됩니다.</td></tr>
               </tbody>
             </table>

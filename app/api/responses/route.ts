@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { burnoutScore, typeCode } from "@/lib/cloudTypes";
+import { typeCode } from "@/lib/cloudTypes";
 import { SCHOOLS } from "@/lib/questions";
 import { cleanPersonal, sanitizeAnswers } from "@/lib/sanitize";
 import { insertResponses } from "@/lib/store";
@@ -28,7 +28,6 @@ export async function POST(req: Request) {
         phone: cleanPersonal(body.phone),
         school,
         type_code: typeCode(answers),
-        burnout_score: burnoutScore(answers),
         duration_sec: Number.isFinite(duration) && duration > 0 ? Math.round(Math.min(duration, 86400)) : null,
       },
     ]);

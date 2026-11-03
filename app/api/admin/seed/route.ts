@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { burnoutScore, typeCode } from "@/lib/cloudTypes";
+import { typeCode } from "@/lib/cloudTypes";
 import { QUESTIONS, SCHOOLS, visibleQuestions, type Answers } from "@/lib/questions";
 import { insertResponses, storageMode, type NewResponse } from "@/lib/store";
 
@@ -25,13 +25,16 @@ function fakeAnswers(): Answers {
     if (q.showIf && !q.showIf(a)) continue;
     const opts = q.options?.map((o) => o.value) ?? [];
     if (q.type === "likert") a[q.id] = Math.max(1, Math.min(5, Math.round(1 + Math.random() * 3 + (mood - 0.5))));
-    else if (q.type === "freq") a[q.id] = String(Math.min(4, Math.max(0, Math.round(mood * 4 + (Math.random() - 0.5) * 2))) * 25);
-    else if (q.type === "single") a[q.id] = pick(opts.filter((o) => o !== "기타"));
+    else if (q.scale) {
+      // 척도 문항은 응답자마다 비슷한 경향이 나오도록 mood 를 섞음
+      const i = Math.round((opts.length - 1) * Math.min(1, Math.max(0, mood + (Math.random() - 0.5) * 0.6)));
+      a[q.id] = opts[i];
+    } else if (q.type === "single") a[q.id] = pick(opts.filter((o) => o !== "기타"));
     else if (q.type === "multi") {
       const n = Math.min(q.max ?? 3, 1 + Math.floor(Math.random() * 3));
       a[q.id] = [...opts.filter((o) => o !== "기타")].sort(() => Math.random() - 0.5).slice(0, n);
-    } else if (q.id === "q30") a[q.id] = pick(WORDS);
-    else if (q.id === "q29") a[q.id] = pick(WISHES) || undefined;
+    } else if (q.id === "q50") a[q.id] = pick(WORDS);
+    else if (q.id === "q49" || q.id === "q8_2") a[q.id] = pick(WISHES) || undefined;
     else if (q.type === "number") a[q.id] = 19 + Math.floor(Math.random() * 8);
   }
   const visible = new Set(visibleQuestions(a).map((q) => q.id));
@@ -52,7 +55,6 @@ export async function POST() {
       phone: `010-${1000 + Math.floor(Math.random() * 8999)}-${1000 + Math.floor(Math.random() * 8999)}`,
       school: pick([...SCHOOLS]),
       type_code: typeCode(answers),
-      burnout_score: burnoutScore(answers),
       duration_sec: 150 + Math.floor(Math.random() * 300),
       created_at: new Date(Date.now() - Math.random() * 6 * 86400000).toISOString(),
     };

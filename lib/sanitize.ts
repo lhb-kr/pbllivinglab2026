@@ -21,7 +21,7 @@ export function sanitizeAnswers(raw: unknown): Answers {
       const list = (Array.isArray(v) ? v : [v]).map((x) => str(x, 200)).filter((x) => allowed?.includes(x));
       const uniq = [...new Set(list)].slice(0, q.max ?? list.length);
       if (uniq.length) out[q.id] = uniq;
-    } else if (q.type === "single" || q.type === "freq") {
+    } else if (q.type === "single") {
       const s = str(v, 200);
       if (allowed?.includes(s)) out[q.id] = s;
     } else {

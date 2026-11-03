@@ -2,10 +2,10 @@ import type { Answers } from "./questions";
 
 // ─────────────────────────────────────────────────────────────
 // 조치원 구름 유형 — MBTI처럼 세 가지 축으로 8가지 유형을 만듭니다.
-//   O / H : 바깥을 떠다니는 탐험 구름 vs 아늑한 곳에 머무는 구름   (Q5·Q6·Q7·Q8·Q23)
-//   T / S : 함께 뭉치는 구름 vs 혼자 흐르는 구름                   (Q6·Q23·Q28-1)
-//   L / E : 조치원에 머물고 싶은 구름 vs 어디론가 떠나고 싶은 구름  (Q9~Q15·Q5·Q6·Q23)
-// 소진(CBI Personal Burnout, Q16~21)은 유형과 별개로 "마음 날씨"로 보여줍니다.
+//   O / H : 바깥을 떠다니는 탐험 구름 vs 아늑한 곳에 머무는 구름   (Q6·Q7·Q8·Q43)
+//   T / S : 함께 뭉치는 구름 vs 혼자 흐르는 구름                   (사회적 동기 Q25·26·27·31·37·40 + Q6·Q43·Q48)
+//   L / E : 조치원에 머물고 싶은 구름 vs 어디론가 떠나고 싶은 구름  (Q9~Q13·Q5·Q6·Q43)
+// 일반 피로 측정(Q14~23)으로 "마음 날씨", 일상 의욕(Q24~41)으로 "에너지 지도"를 따로 보여줍니다.
 // ─────────────────────────────────────────────────────────────
 
 export interface CloudType {
@@ -131,27 +131,64 @@ export const WEATHERS: Weather[] = [
 
 const arr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v == null ? [] : [String(v)]);
 const num = (v: unknown) => (v == null || v === "" ? NaN : Number(v));
+const mean = (xs: number[]) => (xs.length ? xs.reduce((s, n) => s + n, 0) / xs.length : NaN);
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** CBI Personal Burnout: 0~100 (응답 문항 평균). 응답 없으면 null */
-export function burnoutScore(a: Answers): number | null {
-  const vals = ["q16", "q17", "q18", "q19", "q20", "q21"].map((k) => num(a[k])).filter((n) => !Number.isNaN(n));
+// ─────────────────────────────────────────────────────────────
+// 4. 일반 피로 측정 (Q14~23, 4점 동의 척도) → 일상 즐거움 지수 0~100
+//    부정 문항(Q15·18·19·20·22)은 역채점. 높을수록 일상이 즐겁고 덜 지친 상태.
+// ─────────────────────────────────────────────────────────────
+const ENJOY_ITEMS = ["q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23"];
+const ENJOY_REVERSED = new Set(["q15", "q18", "q19", "q20", "q22"]);
+
+/** 일상 즐거움 지수 0~100. 응답 없으면 null */
+export function enjoymentScore(a: Answers): number | null {
+  const vals = ENJOY_ITEMS.map((k) => {
+    const v = num(a[k]);
+    if (Number.isNaN(v)) return NaN;
+    return ENJOY_REVERSED.has(k) ? 5 - v : v;
+  }).filter((n) => !Number.isNaN(n));
   if (!vals.length) return null;
-  return Math.round((vals.reduce((s, n) => s + n, 0) / vals.length) * 10) / 10;
+  return round1(((mean(vals) - 1) / 3) * 100);
 }
 
-export function weatherFor(score: number | null): Weather {
-  if (score == null) return WEATHERS[1];
-  if (score < 25) return WEATHERS[0];
-  if (score < 50) return WEATHERS[1];
-  if (score < 75) return WEATHERS[2];
+// ─────────────────────────────────────────────────────────────
+// 5. 일상 의욕 및 동기 경험 (Q24~41) — Apathy-Motivation Index(AMI, Ang et al., 2017) 18문항과
+//    같은 순서. 하위척도: 행동 활성화(BA), 사회적 동기(SM), 정서 민감성(ES).
+//    여기서는 "의욕" 방향(높을수록 의욕적)으로 0~100 환산. 원 척도의 무감동 점수는 100 - 값.
+// ─────────────────────────────────────────────────────────────
+export const MOTIVE_SCALES = [
+  { key: "BA", label: "행동 에너지", desc: "마음먹은 일을 시작하고 끝까지 해내는 힘", items: ["q28", "q32", "q33", "q34", "q35", "q38"] },
+  { key: "SM", label: "사람 에너지", desc: "먼저 다가가고 함께하자고 제안하는 힘", items: ["q25", "q26", "q27", "q31", "q37", "q40"] },
+  { key: "ES", label: "마음 감도", desc: "다른 사람과 상황에 마음이 움직이는 정도", items: ["q24", "q29", "q30", "q36", "q39", "q41"] },
+] as const;
+
+export type MotiveKey = (typeof MOTIVE_SCALES)[number]["key"];
+
+/** 하위척도별 0~100 (응답 없으면 null) */
+export function motivationScores(a: Answers): Record<MotiveKey, number | null> {
+  const out = {} as Record<MotiveKey, number | null>;
+  for (const sc of MOTIVE_SCALES) {
+    const vals = sc.items.map((k) => num(a[k])).filter((n) => !Number.isNaN(n));
+    out[sc.key] = vals.length ? round1(((mean(vals) - 1) / 4) * 100) : null;
+  }
+  return out;
+}
+
+/** 마음 날씨: 일상 즐거움 지수가 높을수록 맑음 */
+export function weatherFor(enjoy: number | null): Weather {
+  if (enjoy == null) return WEATHERS[1];
+  if (enjoy >= 75) return WEATHERS[0];
+  if (enjoy >= 50) return WEATHERS[1];
+  if (enjoy >= 25) return WEATHERS[2];
   return WEATHERS[3];
 }
 
 /** 각 축에 대해 0~100 (50 이상이면 앞 글자) */
 export function axisScores(a: Answers): [number, number, number] {
   const q6 = arr(a.q6);
-  const q23 = arr(a.q23);
-  const q281 = arr(a.q28_1);
+  const q43 = arr(a.q43);
+  const q48 = arr(a.q48);
 
   // O / H — 활동 반경
   let out = 0;
@@ -159,29 +196,27 @@ export function axisScores(a: Answers): [number, number, number] {
   out += ({ "자주 이용하는 공간이 있다": 2, "가끔 이용하는 공간이 있다": 1 } as Record<string, number>)[String(a.q8)] ?? 0;
   if (q6.some((x) => ["학교 주변 카페 및 식당", "조치원 원도심", "세종시 시내 (나성동, 어진동, 도담동 등)"].includes(x))) out += 1;
   if (q6.includes("자취방 또는 기숙사")) out -= 1;
-  out += q23.filter((x) => ["산책이나 운동을 한다", "카페 및 공원 등 외부 공간에 나간다", "조치원 외 다른 지역으로 이동한다", "취미나 여가활동을 한다"].includes(x)).length * 0.75;
-  if (q23.includes("혼자 쉬거나 잠을 잔다")) out -= 0.5;
+  out += q43.filter((x) => ["산책이나 운동을 한다", "카페 및 공원 등 외부 공간에 나간다", "조치원 외 다른 지역으로 이동한다", "취미나 여가활동을 한다"].includes(x)).length * 0.75;
+  if (q43.includes("혼자 쉬거나 잠을 잔다")) out -= 0.5;
   const outPct = clamp(((out + 1.5) / 8) * 100); // 대략 -1.5 ~ 6.5 범위를 0~100으로
 
-  // T / S — 함께 vs 혼자
-  let together = 0;
-  if (q23.includes("친구나 지인을 만난다")) together += 2;
-  if (q23.includes("혼자 쉬거나 잠을 잔다")) together -= 1;
-  if (q23.includes("스마트폰, 영상, SNS, 게임 등을 하며 시간을 보낸다")) together -= 0.5;
-  if (q6.includes("교내 공간(도서관, 동아리방, 과방 등)")) together += 0.5;
-  if (q6.includes("학교 주변 카페 및 식당")) together += 0.5;
-  if (q281.includes("지역 학생들간의 협력 및 교류 프로그램")) together += 1;
-  if (q281.includes("휴식 및 마음건강 프로그램") && !q23.includes("친구나 지인을 만난다")) together -= 0.25;
-  const togetherPct = clamp(((together + 1.75) / 5.75) * 100);
+  // T / S — 함께 vs 혼자: 사회적 동기(SM) 점수가 중심, 대처·장소·프로그램 선택으로 보정
+  const sm = motivationScores(a).SM ?? 50;
+  let together = sm;
+  if (q43.includes("친구나 지인을 만난다")) together += 12;
+  if (q43.includes("혼자 쉬거나 잠을 잔다")) together -= 6;
+  if (q6.includes("교내 공간(도서관, 동아리방, 과방 등)") || q6.includes("학교 주변 카페 및 식당")) together += 4;
+  if (q48.includes("지역 학생들간의 협력 및 교류 프로그램")) together += 6;
+  const togetherPct = clamp(together);
 
   // L / E — 조치원에 머묾 vs 떠남
-  const env = ["q9", "q10", "q11", "q12", "q13", "q14", "q15"].map((k) => num(a[k])).filter((n) => !Number.isNaN(n));
-  const envMean = env.length ? env.reduce((s, n) => s + n, 0) / env.length : 3;
+  const env = ["q9", "q10", "q11", "q12", "q13"].map((k) => num(a[k])).filter((n) => !Number.isNaN(n));
+  const envMean = env.length ? mean(env) : 3;
   let stay = (envMean - 2.5) * 1.2; // 조치원 인식은 전반적으로 낮게 나오는 경향을 보정
   stay += ({ "거의 매주 머문다": 0.8, "한 달에 2~3회 정도 머문다": 0.3, "한 달에 1회 정도 머문다": -0.3, "거의 머물지 않는다": -0.8 } as Record<string, number>)[String(a.q5)] ?? 0;
   if (q6.includes("세종시 시내 (나성동, 어진동, 도담동 등)")) stay -= 0.6;
   if (q6.includes("조치원 원도심")) stay += 0.5;
-  if (q23.includes("조치원 외 다른 지역으로 이동한다")) stay -= 0.6;
+  if (q43.includes("조치원 외 다른 지역으로 이동한다")) stay -= 0.6;
   const stayPct = clamp(((stay + 2.5) / 5) * 100);
 
   return [Math.round(outPct), Math.round(togetherPct), Math.round(stayPct)];
@@ -194,4 +229,12 @@ export function typeCode(a: Answers): string {
 
 function clamp(n: number) {
   return Math.max(0, Math.min(100, n));
+}
+
+/** 0~100 점수를 결과 화면용 부드러운 말로 */
+export function faceWord(v: number) {
+  if (v >= 75) return "아주 높아요";
+  if (v >= 55) return "높은 편이에요";
+  if (v >= 40) return "보통이에요";
+  return "잔잔한 편이에요";
 }

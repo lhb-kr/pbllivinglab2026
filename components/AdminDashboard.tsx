@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { WeatherIcon } from "./Art";
-import { CLOUD_TYPES, WEATHERS, weatherFor } from "@/lib/cloudTypes";
+import { CLOUD_TYPES, MOTIVE_SCALES, WEATHERS, enjoymentScore, motivationScores, weatherFor } from "@/lib/cloudTypes";
 import { LIKERT_LABELS, QUESTIONS, SCHOOLS, SECTIONS, etcKey, type Question } from "@/lib/questions";
 
 interface Row {
@@ -14,7 +14,7 @@ interface Row {
   consent_personal: boolean;
   answers: Record<string, string | string[] | number | undefined>;
   type_code: string;
-  burnout_score: number | null;
+  survey_version: number;
   duration_sec: number | null;
 }
 
@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [storage, setStorage] = useState<string>("");
+  const [oldCount, setOldCount] = useState(0);
   const [status, setStatus] = useState<DbStatus | null>(null);
   const [setupMsg, setSetupMsg] = useState("");
   const [tab, setTab] = useState<Tab>("summary");
@@ -54,6 +55,7 @@ export default function AdminDashboard() {
     const data = await res.json();
     setRows(data.rows);
     setStorage(data.storage);
+    setOldCount(data.oldCount ?? 0);
     setStatus(data.status ?? null);
     setAuthed(true);
   }, []);
@@ -102,6 +104,12 @@ export default function AdminDashboard() {
                   <span className="badge">Supabase 연결됨</span>
                 )}
               </div>
+              {oldCount > 0 && (
+                <p className="small muted" style={{ margin: "8px 0 0" }}>
+                  이전 설문지(CBI 버전) 응답 {oldCount}건은 문항이 달라 여기 집계에서 뺐어요.{" "}
+                  <a href="/api/admin/export?version=1">이전 버전 CSV 받기</a>
+                </p>
+              )}
             </div>
             <div className="admin-actions">
               <button className="sbtn" onClick={load} disabled={busy}>{busy ? "불러오는 중…" : "새로고침"}</button>
@@ -222,9 +230,14 @@ function Summary({ rows }: { rows: Row[] }) {
   const todayN = rows.filter((r) => new Date(r.created_at).toDateString() === today).length;
   const durs = rows.map((r) => r.duration_sec).filter((x): x is number => x != null);
   const avgDur = durs.length ? durs.reduce((a, b) => a + b, 0) / durs.length : 0;
-  const burns = rows.map((r) => r.burnout_score).filter((x): x is number => x != null);
-  const avgBurn = burns.length ? burns.reduce((a, b) => a + b, 0) / burns.length : 0;
-  const interview = rows.filter((r) => r.answers.q31 === "있다").length;
+  const enjoys = rows.map((r) => enjoymentScore(r.answers)).filter((x): x is number => x != null);
+  const avgEnjoy = enjoys.length ? enjoys.reduce((a, b) => a + b, 0) / enjoys.length : 0;
+  const motives = rows.map((r) => motivationScores(r.answers));
+  const motiveMeans = MOTIVE_SCALES.map((sc) => {
+    const vals = motives.map((m) => m[sc.key]).filter((x): x is number => x != null);
+    return { sc, n: vals.length, mean: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0 };
+  });
+  const interview = rows.filter((r) => r.answers.q51 === "있다").length;
   const consent = rows.filter((r) => r.consent_personal).length;
 
   const typeCounts = Object.keys(CLOUD_TYPES).map((code) => ({
@@ -237,7 +250,7 @@ function Summary({ rows }: { rows: Row[] }) {
 
   const weatherCounts = WEATHERS.map((w) => ({
     key: w.label,
-    n: burns.filter((b) => weatherFor(b).key === w.key).length,
+    n: enjoys.filter((b) => weatherFor(b).key === w.key).length,
     label: (<><WeatherIcon kind={w.key} size={24} /><span>{w.label}</span></>),
   }));
 
@@ -265,7 +278,7 @@ function Summary({ rows }: { rows: Row[] }) {
       <div className="tiles">
         <Tile lab="총 응답" val={rows.length} sub={`오늘 +${todayN}`} />
         <Tile lab="평균 소요시간" val={`${Math.floor(avgDur / 60)}분 ${Math.round(avgDur % 60)}초`} />
-        <Tile lab="평균 소진 지수 (CBI)" val={avgBurn.toFixed(1)} sub={`0~100 · ${weatherFor(avgBurn).label}`} />
+        <Tile lab="평균 일상 즐거움 지수" val={avgEnjoy.toFixed(1)} sub={`0~100 · ${weatherFor(avgEnjoy).label}`} />
         <Tile lab="인터뷰 희망" val={interview} sub={`${pct(interview, rows.length)}%`} />
         <Tile lab="개인정보 동의" val={consent} sub={`${pct(consent, rows.length)}%`} />
         {SCHOOLS.map((sc) => {
@@ -280,9 +293,20 @@ function Summary({ rows }: { rows: Row[] }) {
           <HBars items={typeCounts} total={rows.length} />
         </section>
         <section className="card panel">
-          <h3>마음 날씨 (CBI Personal Burnout)</h3>
-          <div className="meta">맑음 &lt;25 · 구름 조금 &lt;50 · 흐림 &lt;75 · 소나기 ≥75 · n = {burns.length}</div>
-          <HBars items={weatherCounts} total={burns.length} />
+          <h3>마음 날씨 (일반 피로 측정 Q14~23)</h3>
+          <div className="meta">일상 즐거움 지수(역채점 Q15·18·19·20·22) · 맑음 ≥75 · 구름 조금 ≥50 · 흐림 ≥25 · 소나기 &lt;25 · n = {enjoys.length}</div>
+          <HBars items={weatherCounts} total={enjoys.length} />
+        </section>
+        <section className="card panel">
+          <h3>일상 의욕 및 동기 (Q24~41)</h3>
+          <div className="meta">하위척도 평균 · 0~100 · 높을수록 의욕적 (AMI 무감동 점수 = 100 − 값)</div>
+          {motiveMeans.map(({ sc, n, mean }) => (
+            <div className="hbar" key={sc.key} title={`${sc.label} 평균 ${mean.toFixed(1)} (n=${n})`}>
+              <span className="lab"><b>{sc.label}</b>&nbsp;<span className="faint">{sc.key} · {sc.desc}</span></span>
+              <span className="num">{mean.toFixed(1)}</span>
+              <span className="track"><i style={{ width: `${mean}%` }} /></span>
+            </div>
+          ))}
         </section>
         <section className="card panel">
           <h3>일별 응답 수</h3>
@@ -356,13 +380,14 @@ function QuestionPanel({ q, rows }: { q: Question; rows: Row[] }) {
         <div className="mean">평균 <b>{mean.toFixed(1)}</b>{q.unit}</div>
       </>
     );
-  } else if (q.type === "likert") {
-    const counts = [1, 2, 3, 4, 5].map((v) => answered.filter((r) => Number(r.answers[q.id]) === v).length);
+  } else if (q.type === "likert" || q.scale) {
+    const labels = q.type === "likert" ? LIKERT_LABELS : q.options!.map((o) => o.label);
+    const counts = labels.map((_, i) => answered.filter((r) => Number(r.answers[q.id]) === i + 1).length);
     const mean = n ? answered.reduce((s, r) => s + Number(r.answers[q.id]), 0) / n : 0;
     body = (
       <>
-        <Cols items={counts.map((c, i) => ({ label: String(i + 1), n: c, tip: `${i + 1} ${LIKERT_LABELS[i]}: ${c}명 (${pct(c, n)}%)` }))} />
-        <div className="mean">평균 <b>{mean.toFixed(2)}</b> / 5</div>
+        <Cols items={counts.map((c, i) => ({ label: String(i + 1), n: c, tip: `${i + 1} ${labels[i]}: ${c}명 (${pct(c, n)}%)` }))} />
+        <div className="mean">평균 <b>{mean.toFixed(2)}</b> / {labels.length} <span className="faint">· 1 {labels[0]} ~ {labels.length} {labels[labels.length - 1]}</span></div>
       </>
     );
   } else {
@@ -402,17 +427,18 @@ function QuestionPanel({ q, rows }: { q: Question; rows: Row[] }) {
 function TextAnswers({ rows }: { rows: Row[] }) {
   const words = new Map<string, number>();
   rows.forEach((r) => {
-    const w = String(r.answers.q30 ?? "").trim();
+    const w = String(r.answers.q50 ?? "").trim();
     if (w) words.set(w, (words.get(w) ?? 0) + 1);
   });
   const wordList = [...words.entries()].sort((a, b) => b[1] - a[1]);
   const maxW = Math.max(1, ...wordList.map(([, c]) => c));
-  const wishes = rows.filter((r) => String(r.answers.q29 ?? "").trim());
+  const wishes = rows.filter((r) => String(r.answers.q49 ?? "").trim());
+  const reasons = rows.filter((r) => String(r.answers.q8_2 ?? "").trim());
 
   return (
     <div className="grid2">
       <section className="card panel">
-        <h3>Q30. 조치원을 한 단어로 표현한다면?</h3>
+        <h3>Q50. 조치원을 한 단어로 표현한다면?</h3>
         <div className="meta">{wordList.length}개 단어 · 크기 = 응답 수</div>
         <div className="words">
           {wordList.map(([w, c]) => (
@@ -421,13 +447,25 @@ function TextAnswers({ rows }: { rows: Row[] }) {
         </div>
       </section>
       <section className="card panel">
-        <h3>Q29. ‘이런 공간이나 프로그램이 있으면 좋겠다’</h3>
+        <h3>Q49. &apos;이런 공간이나 프로그램이 있으면 좋겠다&apos;</h3>
         <div className="meta">{wishes.length}건</div>
         <div className="quotes">
           {wishes.map((r) => (
             <blockquote key={r.id}>
-              {String(r.answers.q29)}
+              {String(r.answers.q49)}
               <footer>{CLOUD_TYPES[r.type_code]?.name} · {show(r.answers.q1)} · {fmtTime(r.created_at)}</footer>
+            </blockquote>
+          ))}
+        </div>
+      </section>
+      <section className="card panel">
+        <h3>Q8-2. 조치원 문화·여가 공간을 자주 이용하지 않는 이유</h3>
+        <div className="meta">{reasons.length}건 · Q8에서 가끔 이용 / 거의 이용 안 함</div>
+        <div className="quotes">
+          {reasons.map((r) => (
+            <blockquote key={r.id}>
+              {String(r.answers.q8_2)}
+              <footer>{show(r.answers.q8)} · {show(r.answers.q4)} · {fmtTime(r.created_at)}</footer>
             </blockquote>
           ))}
         </div>
@@ -447,7 +485,7 @@ function People({ rows }: { rows: Row[] }) {
   const list = useMemo(
     () =>
       rows.filter((r) => {
-        if (onlyInterview && r.answers.q31 !== "있다") return false;
+        if (onlyInterview && r.answers.q51 !== "있다") return false;
         if (!query) return true;
         const hay = [r.name, r.phone, r.school, r.type_code, CLOUD_TYPES[r.type_code]?.name].join(" ");
         return hay.includes(query);
@@ -466,7 +504,7 @@ function People({ rows }: { rows: Row[] }) {
       <div className="tablewrap">
         <table className="resp">
           <thead>
-            <tr><th>제출</th><th>이름</th><th>전화번호</th><th>학교</th><th>나이</th><th>유형</th><th>소진 지수</th><th>인터뷰</th><th>소요</th></tr>
+            <tr><th>제출</th><th>이름</th><th>전화번호</th><th>학교</th><th>나이</th><th>유형</th><th>일상 즐거움</th><th>인터뷰</th><th>소요</th></tr>
           </thead>
           <tbody>
             {list.map((r) => (
@@ -478,8 +516,8 @@ function People({ rows }: { rows: Row[] }) {
                   <td>{r.school ?? <span className="faint">—</span>}</td>
                   <td>{show(r.answers.age)}</td>
                   <td>{r.type_code} {CLOUD_TYPES[r.type_code]?.name.replace(" 구름", "")}</td>
-                  <td>{r.burnout_score ?? "—"}</td>
-                  <td>{show(r.answers.q31)}</td>
+                  <td>{enjoymentScore(r.answers) ?? "—"}</td>
+                  <td>{show(r.answers.q51)}</td>
                   <td>{r.duration_sec ? `${Math.floor(r.duration_sec / 60)}:${String(r.duration_sec % 60).padStart(2, "0")}` : "—"}</td>
                 </tr>
                 {open === r.id && (
@@ -490,7 +528,7 @@ function People({ rows }: { rows: Row[] }) {
                           <Fragment key={q.id}>
                             <dt>{qLabel(q)} {q.text}</dt>
                             <dd>
-                              {q.type === "likert" && r.answers[q.id] ? `${r.answers[q.id]} (${LIKERT_LABELS[Number(r.answers[q.id]) - 1]})` : q.type === "freq" ? show(q.options?.find((o) => o.value === r.answers[q.id])?.label) : show(r.answers[q.id])}
+                              {q.type === "likert" && r.answers[q.id] ? `${r.answers[q.id]} (${LIKERT_LABELS[Number(r.answers[q.id]) - 1]})` : q.scale && r.answers[q.id] ? `${r.answers[q.id]} (${show(q.options?.find((o) => o.value === r.answers[q.id])?.label)})` : show(r.answers[q.id])}
                               {r.answers[etcKey(q.id)] ? ` — 기타: ${r.answers[etcKey(q.id)]}` : ""}
                             </dd>
                           </Fragment>
