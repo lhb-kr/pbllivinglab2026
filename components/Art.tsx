@@ -59,7 +59,7 @@ export function ScaleDots({
   onCommit,
   ariaLabel,
 }: {
-  value: number | undefined; // 0~4
+  value: number | undefined; // 0 ~ labels.length-1
   labels: string[];
   tone?: "calm" | "severity";
   onChange: (i: number) => void;
@@ -68,12 +68,14 @@ export function ScaleDots({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState(false);
+  const last_i = labels.length - 1; // 4점·5점 척도 모두 지원
+  const step = 100 / last_i;
   const last = useRef<number | undefined>(value);
 
   const idxAt = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect();
     const t = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    return Math.round(t * 4);
+    return Math.round(t * last_i);
   };
   const set = (i: number) => {
     if (i !== last.current) {
@@ -96,13 +98,13 @@ export function ScaleDots({
     onCommit(i);
   };
   const key = (e: KeyboardEvent<HTMLDivElement>) => {
-    const cur = value ?? 2;
-    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); set(Math.min(4, cur + (value === undefined ? 0 : 1))); }
+    const cur = value ?? Math.floor(last_i / 2);
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); set(Math.min(last_i, cur + (value === undefined ? 0 : 1))); }
     else if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); set(Math.max(0, cur - (value === undefined ? 0 : 1))); }
     else if ((e.key === "Enter" || e.key === " ") && value !== undefined) { e.preventDefault(); onCommit(value); }
   };
 
-  const pos = value === undefined ? 0 : value * 25;
+  const pos = value === undefined ? 0 : value * step;
   return (
     <div className={`scale ${tone} ${value === undefined ? "empty" : ""} ${drag ? "dragging" : ""}`}>
       <div className="scale-now" aria-live="polite">{value === undefined ? " " : labels[value]}</div>
@@ -113,7 +115,7 @@ export function ScaleDots({
         tabIndex={0}
         aria-label={ariaLabel}
         aria-valuemin={1}
-        aria-valuemax={5}
+        aria-valuemax={labels.length}
         aria-valuenow={value === undefined ? undefined : value + 1}
         aria-valuetext={value === undefined ? "선택 안 함" : labels[value]}
         onPointerDown={down}
@@ -124,9 +126,9 @@ export function ScaleDots({
       >
         <span className="line" />
         <span className="line-fill" style={{ width: `${pos}%` }} />
-        {[0, 1, 2, 3, 4].map((i) => (
+        {labels.map((_, i) => (
           <span key={i} className={`dot ${value !== undefined && i <= value ? "past" : ""} ${value === i ? "cur" : ""}`}
-            style={{ left: `${i * 25}%`, ["--i" as string]: i }} />
+            style={{ left: `${i * step}%`, ["--i" as string]: i }} />
         ))}
         {value !== undefined && (
           <span className="thumb" style={{ left: `${pos}%` }}>
@@ -136,7 +138,7 @@ export function ScaleDots({
       </div>
       <div className="scale-ends">
         <span>{labels[0]}</span>
-        <span>{labels[4]}</span>
+        <span>{labels[last_i]}</span>
       </div>
     </div>
   );

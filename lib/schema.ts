@@ -10,12 +10,14 @@ create table if not exists public.survey_responses (
   answers          jsonb not null,
   type_code        text not null,
   burnout_score    numeric,
-  duration_sec     integer
+  duration_sec     integer,
+  survey_version   integer not null default 1  -- 설문지 버전 (2 = 최종 설문지, 51문항)
 );
 
 -- 이전 버전(학번 수집) 테이블을 쓰고 있었다면 새 칼럼을 추가
 alter table public.survey_responses add column if not exists name text;
 alter table public.survey_responses add column if not exists school text;
+alter table public.survey_responses add column if not exists survey_version integer not null default 1;
 
 create index if not exists survey_responses_created_at_idx on public.survey_responses (created_at desc);
 
